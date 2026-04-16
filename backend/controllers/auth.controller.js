@@ -6,6 +6,12 @@ import { sealProtectedRecord } from "../lib/crypto/protected-record.js";
 import { createPasswordHash, createSalt, hashWithSalt, verifyPassword } from "../lib/auth/password.js";
 import { sendEmailOtp, shouldExposeDevOtp } from "../lib/auth/otp-email.js";
 import {
+  decryptTotpSecret,
+  encryptTotpSecret,
+  generateTotpSetup,
+  verifyTotpCode,
+} from "../lib/auth/totp.js";
+import {
   clearRefreshCookie,
   getRefreshTokenFromRequest,
   issueSessionTokens,
@@ -39,10 +45,37 @@ const userSummary = (user) => ({
   pseudonym: user.pseudonym,
   role: user.role,
   twoFactorEnabled: user.twoFactor?.enabled,
+  totpEnabled: Boolean(user.twoFactor?.totpEnabled),
 });
 
 const safeIp = (req) =>
   req.headers["x-forwarded-for"]?.toString().split(",")[0].trim() || req.socket?.remoteAddress || "";
+
+const issueLoginSuccessResponse = async ({ req, res, user }) => {
+  user.twoFactor.challengeId = null;
+  user.twoFactor.otpHash = null;
+  user.twoFactor.otpSalt = null;
+  user.twoFactor.otpExpiresAt = null;
+  user.twoFactor.otpAttempts = 0;
+  user.twoFactor.verifiedAt = new Date();
+  user.lastLoginAt = new Date();
+
+  await user.save();
+
+  const tokens = await issueSessionTokens({
+    user,
+    userAgent: req.headers["user-agent"] || "",
+    ipAddress: safeIp(req),
+  });
+
+  setRefreshCookie(res, tokens.refreshToken);
+
+  return res.status(200).json({
+    message: "2FA verified",
+    accessToken: tokens.accessToken,
+    user: userSummary(user),
+  });
+};
 
 const clearExpiredSignupChallenges = () => {
   const now = Date.now();
@@ -362,6 +395,7 @@ export const login = async (req, res) => {
       message: "Primary credentials verified. Complete 2FA.",
       challengeId,
       twoFactorMethod: user.twoFactor.method,
+      totpEnabled: Boolean(user.twoFactor?.totpEnabled),
       otpDelivery: delivery.delivered ? "email" : "dev-fallback",
     };
 
@@ -379,15 +413,31 @@ export const verifySecondFactor = async (req, res) => {
   try {
     const { email, challengeId, otp } = req.body;
 
-    if (!email || !challengeId || !otp) {
-      return res.status(400).json({ message: "email, challengeId and otp are required" });
+    if (!email || !otp) {
+      return res.status(400).json({ message: "email and otp are required" });
     }
 
-    const emailHash = hashEmail(email);
+    const emailHash = hashEmail(normalizeEmail(email));
     const user = await User.findOne({ emailHash });
 
     if (!user) {
       return res.status(401).json({ message: "Invalid 2FA verification request" });
+    }
+
+    // If authenticator is enabled, TOTP code can be used without depending on email challenge availability.
+    if (user.twoFactor?.totpEnabled && user.twoFactor?.totpSecretEncrypted?.ciphertext) {
+      const activeSecret = decryptTotpSecret(user.twoFactor.totpSecretEncrypted);
+      const isTotpValid = verifyTotpCode({ token: otp, secretBase32: activeSecret });
+
+      if (isTotpValid) {
+        return issueLoginSuccessResponse({ req, res, user });
+      }
+    }
+
+    if (!challengeId) {
+      return res.status(401).json({
+        message: "Invalid OTP. Provide a valid email challengeId or use authenticator code.",
+      });
     }
 
     if (
@@ -416,31 +466,123 @@ export const verifySecondFactor = async (req, res) => {
       return res.status(401).json({ message: "Invalid OTP" });
     }
 
-    user.twoFactor.challengeId = null;
-    user.twoFactor.otpHash = null;
-    user.twoFactor.otpSalt = null;
-    user.twoFactor.otpExpiresAt = null;
-    user.twoFactor.otpAttempts = 0;
-    user.twoFactor.verifiedAt = new Date();
-    user.lastLoginAt = new Date();
-
-    await user.save();
-
-    const tokens = await issueSessionTokens({
-      user,
-      userAgent: req.headers["user-agent"] || "",
-      ipAddress: safeIp(req),
-    });
-
-    setRefreshCookie(res, tokens.refreshToken);
-
-    return res.status(200).json({
-      message: "2FA verified",
-      accessToken: tokens.accessToken,
-      user: userSummary(user),
-    });
+    return issueLoginSuccessResponse({ req, res, user });
   } catch (error) {
     return res.status(500).json({ message: "2FA verification failed" });
+  }
+};
+
+export const setupTotp = async (req, res) => {
+  try {
+    const user = await User.findById(req.auth?.userId);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const setup = await generateTotpSetup({
+      accountLabel: user.pseudonym,
+    });
+
+    user.twoFactor.totpPendingSecretEncrypted = encryptTotpSecret(setup.secretBase32);
+    user.twoFactor.totpSetupStartedAt = new Date();
+    await user.save();
+
+    return res.status(200).json({
+      message: "Scan QR in Google Authenticator and verify with a 6-digit code.",
+      qrCodeDataUrl: setup.qrCodeDataUrl,
+      manualKey: setup.secretBase32,
+      issuer: setup.issuer,
+    });
+  } catch {
+    return res.status(500).json({ message: "Failed to initiate authenticator setup" });
+  }
+};
+
+export const verifyTotpSetup = async (req, res) => {
+  try {
+    const { code } = req.body;
+
+    if (!code) {
+      return res.status(400).json({ message: "code is required" });
+    }
+
+    const user = await User.findById(req.auth?.userId);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (!user.twoFactor?.totpPendingSecretEncrypted?.ciphertext) {
+      return res.status(400).json({ message: "No pending authenticator setup found" });
+    }
+
+    const pendingSecret = decryptTotpSecret(user.twoFactor.totpPendingSecretEncrypted);
+    const valid = verifyTotpCode({ token: code, secretBase32: pendingSecret });
+
+    if (!valid) {
+      return res.status(401).json({ message: "Invalid authenticator code" });
+    }
+
+    const promotedSecret = {
+      iv: user.twoFactor.totpPendingSecretEncrypted.iv,
+      tag: user.twoFactor.totpPendingSecretEncrypted.tag,
+      ciphertext: user.twoFactor.totpPendingSecretEncrypted.ciphertext,
+    };
+
+    user.twoFactor.totpSecretEncrypted = promotedSecret;
+    user.twoFactor.totpPendingSecretEncrypted = null;
+    user.twoFactor.totpEnabled = true;
+    user.twoFactor.totpSetupAt = new Date();
+    user.twoFactor.method = "email-otp";
+    await user.save();
+
+    return res.status(200).json({
+      message: "Authenticator enabled successfully",
+      twoFactor: {
+        totpEnabled: true,
+      },
+    });
+  } catch {
+    return res.status(500).json({ message: "Failed to verify authenticator setup" });
+  }
+};
+
+export const disableTotp = async (req, res) => {
+  try {
+    const { code } = req.body;
+
+    if (!code) {
+      return res.status(400).json({ message: "code is required" });
+    }
+
+    const user = await User.findById(req.auth?.userId);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (!user.twoFactor?.totpEnabled || !user.twoFactor?.totpSecretEncrypted?.ciphertext) {
+      return res.status(400).json({ message: "Authenticator is not enabled" });
+    }
+
+    const activeSecret = decryptTotpSecret(user.twoFactor.totpSecretEncrypted);
+    const valid = verifyTotpCode({ token: code, secretBase32: activeSecret });
+
+    if (!valid) {
+      return res.status(401).json({ message: "Invalid authenticator code" });
+    }
+
+    user.twoFactor.totpEnabled = false;
+    user.twoFactor.totpSecretEncrypted = null;
+    user.twoFactor.totpPendingSecretEncrypted = null;
+    user.twoFactor.totpSetupStartedAt = null;
+    user.twoFactor.totpSetupAt = null;
+    await user.save();
+
+    return res.status(200).json({ message: "Authenticator disabled" });
+  } catch {
+    return res.status(500).json({ message: "Failed to disable authenticator" });
   }
 };
 

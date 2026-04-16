@@ -61,7 +61,9 @@ const Login = () => {
     <div className="min-h-[70vh] flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl shadow-sm p-6">
         <h1 className="text-2xl font-bold text-slate-900">Secure Login</h1>
-        <p className="text-sm text-slate-600 mt-1">Sign in with password, then complete email OTP verification.</p>
+        <p className="text-sm text-slate-600 mt-1">
+          Sign in with password, then use either email OTP or your authenticator app code.
+        </p>
 
         {error && <div className="mt-4 p-3 rounded-lg bg-rose-50 text-rose-700 text-sm">{error}</div>}
 
@@ -97,7 +99,7 @@ const Login = () => {
 
         {challengeId && (
           <form onSubmit={submitOtp} className="mt-5 space-y-3">
-            <label className="text-sm text-slate-700 block">Enter your 6-digit OTP</label>
+            <label className="text-sm text-slate-700 block">Enter your 6-digit email OTP or authenticator code</label>
             <input
               type="text"
               value={otp}

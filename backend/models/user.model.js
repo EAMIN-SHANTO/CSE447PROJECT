@@ -125,6 +125,46 @@ const userSchema = new Schema(
         type: Date,
         default: null,
       },
+      totpEnabled: {
+        type: Boolean,
+        default: false,
+      },
+      totpSecretEncrypted: {
+        iv: {
+          type: String,
+          default: null,
+        },
+        tag: {
+          type: String,
+          default: null,
+        },
+        ciphertext: {
+          type: String,
+          default: null,
+        },
+      },
+      totpPendingSecretEncrypted: {
+        iv: {
+          type: String,
+          default: null,
+        },
+        tag: {
+          type: String,
+          default: null,
+        },
+        ciphertext: {
+          type: String,
+          default: null,
+        },
+      },
+      totpSetupStartedAt: {
+        type: Date,
+        default: null,
+      },
+      totpSetupAt: {
+        type: Date,
+        default: null,
+      },
     },
     accountStatus: {
       type: String,

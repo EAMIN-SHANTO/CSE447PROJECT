@@ -40,6 +40,7 @@ const shapeProfileResponse = (user, fields) => ({
   twoFactor: {
     enabled: user.twoFactor?.enabled,
     method: user.twoFactor?.method,
+    totpEnabled: Boolean(user.twoFactor?.totpEnabled),
     verifiedAt: user.twoFactor?.verifiedAt,
   },
   trust: {

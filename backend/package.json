@@ -23,6 +23,8 @@
     "mongoose": "^8.8.4",
     "multer": "^2.1.1",
     "node": "^23.4.0",
-    "nodemailer": "^8.0.5"
+    "nodemailer": "^8.0.5",
+    "qrcode": "^1.5.4",
+    "speakeasy": "^2.0.0"
   }
 }

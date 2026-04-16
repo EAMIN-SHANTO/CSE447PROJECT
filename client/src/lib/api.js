@@ -43,6 +43,9 @@ export const api = {
     request("/auth/verify-2fa", { method: "POST", body: payload, withCredentials }),
   refresh: (withCredentials = false) => request("/auth/refresh", { method: "POST", withCredentials }),
   logout: (withCredentials = false) => request("/auth/logout", { method: "POST", withCredentials }),
+  startTotpSetup: (token) => request("/auth/2fa/totp/setup", { method: "POST", token }),
+  verifyTotpSetup: (payload, token) => request("/auth/2fa/totp/verify", { method: "POST", body: payload, token }),
+  disableTotp: (payload, token) => request("/auth/2fa/totp/disable", { method: "POST", body: payload, token }),
 
   getProfile: (token) => request("/profiles/me", { token }),
   updateProfile: (payload, token) => request("/profiles/me", { method: "PATCH", body: payload, token }),
