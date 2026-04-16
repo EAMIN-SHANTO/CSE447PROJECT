@@ -7,9 +7,10 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch index.js",
-    "test": "node --test tests/**/*.test.js",
-    "test:phase7": "node --test tests/phase7-auth-session-rbac.integration.test.js tests/phase7-full-scenario.integration.test.js",
-    "evidence:db": "node scripts/export-encrypted-db-evidence.js"
+    "test": "NODE_ENV=test node --test tests/**/*.test.js",
+    "test:phase7": "NODE_ENV=test node --test tests/phase7-auth-session-rbac.integration.test.js tests/phase7-full-scenario.integration.test.js",
+    "evidence:db": "node scripts/export-encrypted-db-evidence.js",
+    "admin:create": "node scripts/create-or-promote-admin.js"
   },
   "keywords": [],
   "author": "",
@@ -20,6 +21,7 @@
     "express": "^5.0.1",
     "mongodb": "^6.21.0",
     "mongoose": "^8.8.4",
-    "node": "^23.4.0"
+    "node": "^23.4.0",
+    "nodemailer": "^8.0.5"
   }
 }

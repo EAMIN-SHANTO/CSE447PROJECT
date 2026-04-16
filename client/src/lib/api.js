@@ -33,6 +33,7 @@ const request = async (path, { method = "GET", body, token, withCredentials = fa
 };
 
 export const api = {
+  requestSignupOtp: (payload) => request("/auth/register/request-otp", { method: "POST", body: payload }),
   register: (payload) => request("/auth/register", { method: "POST", body: payload }),
   login: (payload) => request("/auth/login", { method: "POST", body: payload }),
   verify2FA: (payload, withCredentials = false) =>

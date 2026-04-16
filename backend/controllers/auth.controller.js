@@ -4,6 +4,7 @@ import User from "../models/user.model.js";
 import { ensureKeySet } from "../lib/crypto/key-manager.js";
 import { sealProtectedRecord } from "../lib/crypto/protected-record.js";
 import { createPasswordHash, createSalt, hashWithSalt, verifyPassword } from "../lib/auth/password.js";
+import { sendEmailOtp, shouldExposeDevOtp } from "../lib/auth/otp-email.js";
 import {
   clearRefreshCookie,
   getRefreshTokenFromRequest,
@@ -17,7 +18,12 @@ const USER_PROFILE_DOMAIN = "user-profile";
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCK_MINUTES = 10;
 const OTP_TTL_SECONDS = Number(process.env.TWO_FACTOR_OTP_TTL_SECONDS || 300);
-const BRACU_EMAIL_PATTERN = /^[^@\s]+@(g\.bracu\.ac\.bd|bracu\.ac\.bd)$/;
+const SIGNUP_OTP_TTL_SECONDS = Number(process.env.SIGNUP_OTP_TTL_SECONDS || OTP_TTL_SECONDS);
+const SIGNUP_OTP_MAX_ATTEMPTS = 5;
+const SHOULD_REQUIRE_SIGNUP_OTP =
+  process.env.REQUIRE_SIGNUP_OTP !== "false" && process.env.NODE_ENV !== "test";
+const BRACU_EMAIL_PATTERN = /^[^@\s]+@(g\.bracu\.ac\.bd|bracu\.ac\.bd|gmail\.com)$/;
+const signupOtpChallenges = new Map();
 
 const normalizeEmail = (email) => String(email || "").trim().toLowerCase();
 
@@ -38,9 +44,148 @@ const userSummary = (user) => ({
 const safeIp = (req) =>
   req.headers["x-forwarded-for"]?.toString().split(",")[0].trim() || req.socket?.remoteAddress || "";
 
+const clearExpiredSignupChallenges = () => {
+  const now = Date.now();
+
+  for (const [challengeId, challenge] of signupOtpChallenges.entries()) {
+    if (!challenge.expiresAt || challenge.expiresAt.getTime() <= now) {
+      signupOtpChallenges.delete(challengeId);
+    }
+  }
+};
+
+const createSignupOtpChallenge = ({ normalizedEmail, otp }) => {
+  clearExpiredSignupChallenges();
+
+  const challengeId = crypto.randomBytes(12).toString("hex");
+  const salt = createSalt();
+  const otpHash = hashWithSalt({ value: otp, salt });
+
+  signupOtpChallenges.set(challengeId, {
+    emailHash: hashEmail(normalizedEmail),
+    otpHash,
+    otpSalt: salt,
+    otpAttempts: 0,
+    expiresAt: new Date(Date.now() + SIGNUP_OTP_TTL_SECONDS * 1000),
+  });
+
+  return challengeId;
+};
+
+const verifySignupOtpChallenge = ({ normalizedEmail, challengeId, otp }) => {
+  clearExpiredSignupChallenges();
+
+  const challenge = signupOtpChallenges.get(challengeId);
+
+  if (!challenge) {
+    return {
+      valid: false,
+      status: 401,
+      message: "Signup OTP challenge expired or invalid",
+    };
+  }
+
+  if (challenge.emailHash !== hashEmail(normalizedEmail)) {
+    return {
+      valid: false,
+      status: 401,
+      message: "Signup OTP challenge does not match this email",
+    };
+  }
+
+  if (challenge.otpAttempts >= SIGNUP_OTP_MAX_ATTEMPTS) {
+    signupOtpChallenges.delete(challengeId);
+    return {
+      valid: false,
+      status: 429,
+      message: "Too many invalid OTP attempts",
+    };
+  }
+
+  const computed = hashWithSalt({ value: String(otp), salt: challenge.otpSalt });
+  const expectedBuffer = Buffer.from(challenge.otpHash, "hex");
+  const actualBuffer = Buffer.from(computed, "hex");
+
+  const isValid =
+    expectedBuffer.length === actualBuffer.length &&
+    crypto.timingSafeEqual(expectedBuffer, actualBuffer);
+
+  if (!isValid) {
+    challenge.otpAttempts += 1;
+    signupOtpChallenges.set(challengeId, challenge);
+
+    return {
+      valid: false,
+      status: 401,
+      message: "Invalid signup OTP",
+    };
+  }
+
+  signupOtpChallenges.delete(challengeId);
+
+  return {
+    valid: true,
+  };
+};
+
+export const requestSignupOtp = async (req, res) => {
+  try {
+    const normalizedEmail = normalizeEmail(req.body?.email);
+
+    if (!normalizedEmail) {
+      return res.status(400).json({ message: "email is required" });
+    }
+
+    if (!BRACU_EMAIL_PATTERN.test(normalizedEmail)) {
+      return res.status(400).json({
+        message: "Only @g.bracu.ac.bd, @bracu.ac.bd, or @gmail.com email accounts are allowed",
+      });
+    }
+
+    const existingByEmail = await User.findOne({ emailHash: hashEmail(normalizedEmail) });
+
+    if (existingByEmail) {
+      return res.status(409).json({ message: "Email already registered" });
+    }
+
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    const otpChallengeId = createSignupOtpChallenge({ normalizedEmail, otp });
+
+    const delivery = await sendEmailOtp({
+      to: normalizedEmail,
+      otp,
+      pseudonym: normalizedEmail.split("@")[0],
+      ttlSeconds: SIGNUP_OTP_TTL_SECONDS,
+      purpose: "signup",
+    });
+
+    const exposeDevOtp = shouldExposeDevOtp();
+
+    if (!delivery.delivered && !exposeDevOtp) {
+      return res.status(503).json({
+        message: "OTP delivery is unavailable. Contact support or configure SMTP.",
+      });
+    }
+
+    const response = {
+      message: "Signup OTP sent. Verify OTP to complete registration.",
+      otpChallengeId,
+      otpDelivery: delivery.delivered ? "email" : "dev-fallback",
+    };
+
+    if (exposeDevOtp) {
+      response.devOtp = otp;
+    }
+
+    return res.status(200).json(response);
+  } catch {
+    return res.status(500).json({ message: "Failed to send signup OTP" });
+  }
+};
+
 export const register = async (req, res) => {
   try {
-    const { email, password, pseudonym, fullName = "", contactInfo = "" } = req.body;
+    const { email, password, pseudonym, fullName = "", contactInfo = "", otpChallengeId, otp } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ message: "email and password are required" });
@@ -52,9 +197,27 @@ export const register = async (req, res) => {
 
     const normalizedEmail = normalizeEmail(email);
 
+    if (SHOULD_REQUIRE_SIGNUP_OTP) {
+      if (!otpChallengeId || !otp) {
+        return res.status(400).json({
+          message: "otpChallengeId and otp are required for signup verification",
+        });
+      }
+
+      const otpResult = verifySignupOtpChallenge({
+        normalizedEmail,
+        challengeId: String(otpChallengeId),
+        otp: String(otp),
+      });
+
+      if (!otpResult.valid) {
+        return res.status(otpResult.status).json({ message: otpResult.message });
+      }
+    }
+
     if (!BRACU_EMAIL_PATTERN.test(normalizedEmail)) {
       return res.status(400).json({
-        message: "Only @g.bracu.ac.bd or @bracu.ac.bd email accounts are allowed",
+        message: "Only @g.bracu.ac.bd, @bracu.ac.bd, or @gmail.com email accounts are allowed",
       });
     }
 
@@ -133,12 +296,13 @@ export const register = async (req, res) => {
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
+    const normalizedEmail = normalizeEmail(email);
 
     if (!email || !password) {
       return res.status(400).json({ message: "email and password are required" });
     }
 
-    const emailHash = hashEmail(email);
+    const emailHash = hashEmail(normalizedEmail);
     const user = await User.findOne({ emailHash });
 
     if (!user) {
@@ -179,15 +343,29 @@ export const login = async (req, res) => {
 
     await user.save();
 
-    console.log(`2FA OTP for ${user.pseudonym}: ${otp}`);
+    const delivery = await sendEmailOtp({
+      to: normalizedEmail,
+      otp,
+      pseudonym: user.pseudonym,
+      ttlSeconds: OTP_TTL_SECONDS,
+    });
+
+    const exposeDevOtp = shouldExposeDevOtp();
+
+    if (!delivery.delivered && !exposeDevOtp) {
+      return res.status(503).json({
+        message: "OTP delivery is unavailable. Contact support or configure SMTP.",
+      });
+    }
 
     const response = {
       message: "Primary credentials verified. Complete 2FA.",
       challengeId,
       twoFactorMethod: user.twoFactor.method,
+      otpDelivery: delivery.delivered ? "email" : "dev-fallback",
     };
 
-    if (process.env.NODE_ENV !== "production") {
+    if (exposeDevOtp) {
       response.devOtp = otp;
     }
 

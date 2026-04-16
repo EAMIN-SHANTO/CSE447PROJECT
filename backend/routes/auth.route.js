@@ -2,6 +2,7 @@ import express from "express";
 import {
 	login,
 	logout,
+	requestSignupOtp,
 	refreshSession,
 	register,
 	verifySecondFactor,
@@ -9,6 +10,7 @@ import {
 
 const router = express.Router();
 
+router.post("/register/request-otp", requestSignupOtp);
 router.post("/register", register);
 router.post("/login", login);
 router.post("/verify-2fa", verifySecondFactor);

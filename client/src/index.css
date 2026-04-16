@@ -3,27 +3,25 @@
 @tailwind utilities;
 
 body {
-    background: #f8fafc;
-    min-height: 100vh;
-    color: #0f172a;
-    font-family: "Montserrat", "Segoe UI", sans-serif;
-    overflow-x: hidden;
+  background: #f8fafc;
+  min-height: 100vh;
+  color: #0f172a;
+  font-family: "Montserrat", "Segoe UI", sans-serif;
+  overflow-x: hidden;
 }
 
 .animatedButton {
-    animation-duration: 10000ms;
+  animation-duration: 10000ms;
 }
 
-
-
 .ql-container {
-    border: none !important;
+  border: none !important;
 }
 
 .ql-toolbar {
-    border: none !important;
+  border: none !important;
 }
 
 .ql-editor {
-    border: none !important;
+  border: none !important;
 }
