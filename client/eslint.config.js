@@ -3,17 +3,17 @@ import globals from "globals";
 import react from "eslint-plugin-react";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
-import { parser } from "@typescript-eslint/parser";
-import { plugin as typescript } from "@typescript-eslint/eslint-plugin";
+import tsParser from "@typescript-eslint/parser";
+import tsPlugin from "@typescript-eslint/eslint-plugin";
 
 export default [
-  { ignores: ["dist"] },
+  { ignores: ["dist", "tailwind.config.js", "postcss.config.js", "vite.config.js", "eslint.config.js"] },
   {
-    files: ["**/*.{ts,tsx}"],
+    files: ["**/*.{js,jsx,ts,tsx}"],
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,
-      parser: parser,
+      parser: tsParser,
       parserOptions: {
         ecmaVersion: "latest",
         ecmaFeatures: { jsx: true },
@@ -25,14 +25,14 @@ export default [
       react,
       "react-hooks": reactHooks,
       "react-refresh": reactRefresh,
-      "@typescript-eslint": typescript,
+      "@typescript-eslint": tsPlugin,
     },
     rules: {
       ...js.configs.recommended.rules,
       ...react.configs.recommended.rules,
       ...react.configs["jsx-runtime"].rules,
       ...reactHooks.configs.recommended.rules,
-      ...typescript.configs.recommended.rules,
+      ...tsPlugin.configs.recommended.rules,
       "no-unused-vars": "warn",
       "react/prop-types": "off",
       "react/jsx-no-target-blank": "off",

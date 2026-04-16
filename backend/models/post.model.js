@@ -42,6 +42,31 @@ const postSchema = new Schema(
       type: String,
       default: "general",
     },
+    marketStatus: {
+      type: String,
+      enum: ["open", "locked", "completed", "cancelled"],
+      default: "open",
+      index: true,
+    },
+    biddingEndsAt: {
+      type: Date,
+      default: () => new Date(Date.now() + 48 * 60 * 60 * 1000),
+      index: true,
+    },
+    winningBid: {
+      type: Schema.Types.ObjectId,
+      ref: "Bid",
+      default: null,
+    },
+    isLocked: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    lockedAt: {
+      type: Date,
+      default: null,
+    },
     isFeatured: {
       type: Boolean,
       default: false,

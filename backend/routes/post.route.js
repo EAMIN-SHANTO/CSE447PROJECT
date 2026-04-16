@@ -1,5 +1,6 @@
 import express from "express";
-import { getPosts,getPost,createPost,deletePost } from "../controllers/post.controller.js";
+import { getPosts,getPost,createPost,updatePost,deletePost } from "../controllers/post.controller.js";
+import { authenticate } from "../middleware/authenticate.js";
 
 
 
@@ -15,8 +16,9 @@ const router = express.Router();
 
 router.get("/",getPosts);
 router.get("/:slug",getPost);
-router.post("/",createPost);
-router.delete("/:id",deletePost);
+router.post("/",authenticate,createPost);
+router.patch("/:id",authenticate,updatePost);
+router.delete("/:id",authenticate,deletePost);
 
    
 

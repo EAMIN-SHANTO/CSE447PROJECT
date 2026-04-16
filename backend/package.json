@@ -7,7 +7,9 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch index.js",
-    "test": "echo \"No tests yet\""
+    "test": "node --test tests/**/*.test.js",
+    "test:phase7": "node --test tests/phase7-auth-session-rbac.integration.test.js tests/phase7-full-scenario.integration.test.js",
+    "evidence:db": "node scripts/export-encrypted-db-evidence.js"
   },
   "keywords": [],
   "author": "",
