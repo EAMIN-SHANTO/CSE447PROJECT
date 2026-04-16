@@ -475,7 +475,9 @@ export const confirmBidHandoff = async (req, res) => {
     }
 
     if (!["accepted", "disputed"].includes(bid.status)) {
-      return res.status(409).json({ message: "Handoff confirmation is only allowed after bid acceptance" });
+      return res.status(409).json({
+        message: `Handoff confirmation is only allowed after bid acceptance (current status: ${bid.status})`,
+      });
     }
 
     if (!bid.transaction?.exchangeCodeHash) {

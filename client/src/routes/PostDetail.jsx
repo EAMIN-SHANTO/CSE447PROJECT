@@ -17,6 +17,7 @@ const PostDetail = () => {
   const [bidInput, setBidInput] = useState({ offerAmount: "", note: "" });
   const [meetupInput, setMeetupInput] = useState({ meetupLocation: "", meetupTime: "", meetupNote: "" });
   const [actionMessage, setActionMessage] = useState("");
+  const [latestExchangePackage, setLatestExchangePackage] = useState(null);
 
   const isSeller = useMemo(
     () => Boolean(profile?.pseudonym && post?.seller?.pseudonym === profile.pseudonym),
@@ -106,8 +107,27 @@ const PostDetail = () => {
 
     try {
       const response = await api.acceptBid(bidId, meetupInput, token);
+      const exchangeCode = response?.transactionPackage?.exchangeCode || "";
+      const expiresAt = response?.transactionPackage?.exchangeCodeExpiresAt || null;
+
+      if (exchangeCode) {
+        localStorage.setItem(
+          `exchange_code_${bidId}`,
+          JSON.stringify({
+            exchangeCode,
+            expiresAt,
+          })
+        );
+
+        setLatestExchangePackage({
+          bidId,
+          exchangeCode,
+          expiresAt,
+        });
+      }
+
       setActionMessage(
-        `Bid accepted. Exchange code: ${response?.transactionPackage?.exchangeCode || "generated"}`
+        `Bid accepted. Exchange code is ready to share with buyer during handoff.`
       );
       await loadPostData();
     } catch (requestError) {
@@ -139,6 +159,20 @@ const PostDetail = () => {
         </div>
 
         <p className="text-slate-700 mb-4">{post.desc}</p>
+
+        {Array.isArray(post.images) && post.images.length > 0 && (
+          <div className="grid md:grid-cols-3 gap-3 mb-4">
+            {post.images.map((imageUrl, index) => (
+              <img
+                key={`${imageUrl}-${index}`}
+                src={imageUrl}
+                alt={`${post.title} ${index + 1}`}
+                className="w-full h-52 object-cover rounded-xl border border-slate-200"
+              />
+            ))}
+          </div>
+        )}
+
         <p className="text-slate-800 whitespace-pre-wrap">{post.content}</p>
 
         <div className="mt-6 grid md:grid-cols-3 gap-4 text-sm">
@@ -171,6 +205,38 @@ const PostDetail = () => {
       </section>
 
       {actionMessage && <div className="p-3 rounded-lg bg-amber-50 text-amber-700 text-sm">{actionMessage}</div>}
+
+      {latestExchangePackage && (
+        <section className="p-4 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-900">
+          <p className="text-sm font-semibold">Exchange Code Generated</p>
+          <p className="mt-2 text-2xl tracking-[0.2em] font-bold">{latestExchangePackage.exchangeCode}</p>
+          <p className="text-xs mt-1">
+            Expires: {latestExchangePackage.expiresAt ? new Date(latestExchangePackage.expiresAt).toLocaleString() : "N/A"}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="px-3 py-1.5 rounded-lg bg-emerald-700 text-white text-xs font-semibold"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(latestExchangePackage.exchangeCode);
+                  setActionMessage("Exchange code copied.");
+                } catch {
+                  setActionMessage("Could not copy exchange code. Please copy manually.");
+                }
+              }}
+            >
+              Copy Code
+            </button>
+            <Link
+              to={`/transactions/${latestExchangePackage.bidId}`}
+              className="px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-semibold"
+            >
+              Open Transaction Page
+            </Link>
+          </div>
+        </section>
+      )}
 
       <section className="grid lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
@@ -253,7 +319,7 @@ const PostDetail = () => {
             {bids.length === 0 && <p className="text-sm text-slate-500">No bids visible.</p>}
             {bids.map((bid) => {
               const canGoTransaction =
-                bid.status !== "pending" &&
+                ["accepted", "disputed", "completed"].includes(bid.status) &&
                 profile &&
                 [bid.seller?.pseudonym, bid.bidder?.pseudonym].includes(profile.pseudonym);
 

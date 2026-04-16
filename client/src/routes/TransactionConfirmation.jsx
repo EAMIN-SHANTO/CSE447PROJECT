@@ -13,6 +13,8 @@ const TransactionConfirmation = () => {
   const [error, setError] = useState("");
   const [form, setForm] = useState({ outcome: "completed", exchangeCode: "", note: "" });
   const [message, setMessage] = useState("");
+  const [storedExchangeCode, setStoredExchangeCode] = useState("");
+  const [storedExchangeExpiresAt, setStoredExchangeExpiresAt] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -59,6 +61,26 @@ const TransactionConfirmation = () => {
     }
   };
 
+  useEffect(() => {
+    if (!bidId || actorRole !== "seller") {
+      return;
+    }
+
+    const raw = localStorage.getItem(`exchange_code_${bidId}`);
+
+    if (!raw) {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(raw);
+      setStoredExchangeCode(parsed.exchangeCode || "");
+      setStoredExchangeExpiresAt(parsed.expiresAt || "");
+    } catch {
+      // Ignore invalid local storage payload.
+    }
+  }, [bidId, actorRole]);
+
   if (loading) {
     return <div className="p-8 text-center text-slate-600">Loading transaction...</div>;
   }
@@ -68,6 +90,10 @@ const TransactionConfirmation = () => {
   }
 
   const bid = data.bid;
+  const isConfirmableStatus = ["accepted", "disputed"].includes(bid.status);
+  const actorConfirmationStatus = actorRole ? bid.transaction?.confirmations?.[actorRole]?.status : "pending";
+  const alreadyConfirmed = actorRole && actorConfirmationStatus && actorConfirmationStatus !== "pending";
+  const canSubmitConfirmation = isConfirmableStatus && !alreadyConfirmed;
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
@@ -118,6 +144,48 @@ const TransactionConfirmation = () => {
       <section className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-slate-900 mb-4">Confirm Offline Handoff</h2>
 
+        {!isConfirmableStatus && (
+          <div className="mb-4 p-3 rounded-lg bg-rose-50 text-rose-700 text-sm">
+            This bid is currently <strong>{bid.status}</strong>. Handoff confirmation is only available for accepted/disputed bids.
+          </div>
+        )}
+
+        {isConfirmableStatus && alreadyConfirmed && (
+          <div className="mb-4 p-3 rounded-lg bg-emerald-50 text-emerald-700 text-sm">
+            You already submitted your confirmation as <strong>{actorConfirmationStatus}</strong>.
+          </div>
+        )}
+
+        {actorRole === "seller" && storedExchangeCode && (
+          <div className="mb-4 p-4 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-900">
+            <p className="text-sm font-semibold">Your Exchange Code (share with buyer in-person)</p>
+            <p className="mt-2 text-2xl tracking-[0.2em] font-bold">{storedExchangeCode}</p>
+            <p className="text-xs mt-1">
+              Expires: {storedExchangeExpiresAt ? new Date(storedExchangeExpiresAt).toLocaleString() : "N/A"}
+            </p>
+            <button
+              type="button"
+              className="mt-3 px-3 py-1.5 rounded-lg bg-emerald-700 text-white text-xs font-semibold"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(storedExchangeCode);
+                  setMessage("Exchange code copied.");
+                } catch {
+                  setMessage("Could not copy exchange code. Please copy manually.");
+                }
+              }}
+            >
+              Copy Code
+            </button>
+          </div>
+        )}
+
+        {actorRole === "buyer" && (
+          <div className="mb-4 p-3 rounded-lg bg-indigo-50 text-indigo-700 text-sm">
+            Ask the seller for the exchange code at handoff, then enter it below when selecting Completed.
+          </div>
+        )}
+
         {message && <div className="mb-4 p-3 rounded-lg bg-amber-50 text-amber-700 text-sm">{message}</div>}
 
         <form onSubmit={submit} className="space-y-3">
@@ -125,6 +193,7 @@ const TransactionConfirmation = () => {
             value={form.outcome}
             onChange={(event) => setForm((prev) => ({ ...prev, outcome: event.target.value }))}
             className="w-full border border-slate-300 rounded-xl p-3"
+            disabled={!canSubmitConfirmation}
           >
             <option value="completed">Completed</option>
             <option value="failed">Failed</option>
@@ -136,6 +205,7 @@ const TransactionConfirmation = () => {
               onChange={(event) => setForm((prev) => ({ ...prev, exchangeCode: event.target.value }))}
               className="w-full border border-slate-300 rounded-xl p-3"
               placeholder="Enter one-time exchange code"
+              disabled={!canSubmitConfirmation}
               required
             />
           )}
@@ -145,9 +215,14 @@ const TransactionConfirmation = () => {
             onChange={(event) => setForm((prev) => ({ ...prev, note: event.target.value }))}
             className="w-full border border-slate-300 rounded-xl p-3 min-h-24"
             placeholder="Optional note for audit trail"
+            disabled={!canSubmitConfirmation}
           />
 
-          <button type="submit" className="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-semibold">
+          <button
+            type="submit"
+            disabled={!canSubmitConfirmation}
+            className="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-semibold disabled:opacity-60"
+          >
             Submit Confirmation
           </button>
         </form>

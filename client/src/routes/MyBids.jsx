@@ -152,7 +152,7 @@ const MyBids = () => {
               <Link to={`/posts/${post.slug}`} className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold">
                 View Listing
               </Link>
-              {bid.status !== "pending" && (
+              {["accepted", "disputed", "completed"].includes(bid.status) && (
                 <Link
                   to={`/transactions/${bid._id}`}
                   className="px-3 py-1.5 rounded-lg bg-emerald-100 text-emerald-700 text-xs font-semibold"

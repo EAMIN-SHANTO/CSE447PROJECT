@@ -14,9 +14,12 @@ const parseResponse = async (response) => {
 };
 
 const request = async (path, { method = "GET", body, token, withCredentials = false } = {}) => {
-  const headers = {
-    "Content-Type": "application/json",
-  };
+  const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
+  const headers = {};
+
+  if (!isFormData) {
+    headers["Content-Type"] = "application/json";
+  }
 
   if (token) {
     headers.Authorization = `Bearer ${token}`;
@@ -25,7 +28,7 @@ const request = async (path, { method = "GET", body, token, withCredentials = fa
   const response = await fetch(`${API_BASE}${path}`, {
     method,
     headers,
-    body: body ? JSON.stringify(body) : undefined,
+    body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
     credentials: withCredentials ? "include" : "same-origin",
   });
 

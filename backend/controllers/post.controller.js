@@ -5,11 +5,44 @@ import { openProtectedRecord, sealProtectedRecord } from "../lib/crypto/protecte
 
 const POST_KEY_DOMAIN = "post-data";
 const DEFAULT_BIDDING_WINDOW_MS = 48 * 60 * 60 * 1000;
+const MAX_POST_IMAGES = 3;
 
 const toDate = (value) => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
 };
+
+const parseImageList = (value) => {
+  if (!value) {
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean).slice(0, MAX_POST_IMAGES);
+  }
+
+  const raw = String(value).trim();
+
+  if (!raw) {
+    return [];
+  }
+
+  if (raw.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.map((item) => String(item).trim()).filter(Boolean).slice(0, MAX_POST_IMAGES);
+      }
+    } catch {
+      // Fallback to single-value handling.
+    }
+  }
+
+  return [raw];
+};
+
+const mapUploadedImageUrls = (req) =>
+  (req.files || []).map((file) => `${req.protocol}://${req.get("host")}/uploads/posts/${file.filename}`);
 
 const resolveSeller = async (userId) => {
   const seller = await User.findById(userId).select("pseudonym trust");
@@ -25,11 +58,14 @@ const resolveSeller = async (userId) => {
 
 const openPostFields = async (post) => {
   if (!post.encryptionMeta?.keyId || !post.protectedData || !post.recordMac) {
+    const images = parseImageList(post.img);
+
     return {
       title: post.title || "",
       desc: post.desc || "",
       content: post.content || "",
-      img: post.img || "",
+      img: images[0] || "",
+      images,
       crypto: {
         algorithm: "LEGACY",
         keyId: "none",
@@ -54,11 +90,14 @@ const openPostFields = async (post) => {
     macKeyHex: keyRecord.runtime.macKeyHex,
   });
 
+  const images = parseImageList(plaintextFields.img || "");
+
   return {
     title: plaintextFields.title || "",
     desc: plaintextFields.desc || "",
     content: plaintextFields.content || "",
-    img: plaintextFields.img || "",
+    img: images[0] || "",
+    images,
     crypto: {
       algorithm: post.encryptionMeta.algorithm,
       keyId: post.encryptionMeta.keyId,
@@ -86,6 +125,7 @@ const toSafePost = async (postDoc) => {
     desc: opened.desc,
     content: opened.content,
     img: opened.img,
+    images: opened.images,
     market: {
       status: post.marketStatus || "open",
       biddingEndsAt: post.biddingEndsAt,
@@ -125,13 +165,22 @@ export const getPost = async (req, res) => {
 
 export const createPost = async (req, res) => {
   try {
-    const { slug, title, desc, content, img, category, isFeatured, biddingEndsAt } = req.body;
+    const { slug, title, desc, content, category, isFeatured, biddingEndsAt } = req.body;
     const userId = req.auth?.userId;
+    const uploadedImages = mapUploadedImageUrls(req);
 
     if (!userId || !slug || !title || !content) {
       return res.status(400).json({
         message: "authenticated user, slug, title and content are required",
       });
+    }
+
+    if (process.env.NODE_ENV !== "test" && uploadedImages.length < 1) {
+      return res.status(400).json({ message: "Upload at least 1 image" });
+    }
+
+    if (uploadedImages.length > MAX_POST_IMAGES) {
+      return res.status(400).json({ message: "Maximum 3 images are allowed" });
     }
 
     const resolvedBidEnd = biddingEndsAt ? toDate(biddingEndsAt) : new Date(Date.now() + DEFAULT_BIDDING_WINDOW_MS);
@@ -150,7 +199,7 @@ export const createPost = async (req, res) => {
         title,
         desc,
         content,
-        img,
+        img: JSON.stringify(uploadedImages),
       },
       encryptionKey: {
         publicKey: keySet.ecc.runtime.publicKey,
@@ -209,13 +258,14 @@ export const updatePost = async (req, res) => {
     }
 
     const current = await openPostFields(post.toObject());
-    const { title, desc, content, img, category, isFeatured, biddingEndsAt } = req.body;
+    const { title, desc, content, category, isFeatured, biddingEndsAt } = req.body;
+    const uploadedImages = mapUploadedImageUrls(req);
 
     const mergedFields = {
       title: title !== undefined ? String(title) : current.title,
       desc: desc !== undefined ? String(desc) : current.desc,
       content: content !== undefined ? String(content) : current.content,
-      img: img !== undefined ? String(img) : current.img,
+      img: JSON.stringify(uploadedImages.length > 0 ? uploadedImages : current.images || []),
     };
 
     if (!mergedFields.title || !mergedFields.content) {

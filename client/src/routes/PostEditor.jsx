@@ -3,6 +3,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../context/useAuth";
 import { api } from "../lib/api";
 
+const MAX_IMAGES = 3;
+
 const toInputDateTime = (value) => {
   if (!value) {
     return "";
@@ -25,10 +27,11 @@ const PostEditor = () => {
     title: "",
     desc: "",
     content: "",
-    img: "",
     category: "general",
     biddingEndsAt: "",
   });
+  const [selectedImages, setSelectedImages] = useState([]);
+  const [existingImages, setExistingImages] = useState([]);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -46,10 +49,10 @@ const PostEditor = () => {
           title: post.title || "",
           desc: post.desc || "",
           content: post.content || "",
-          img: post.img || "",
           category: post.category || "general",
           biddingEndsAt: toInputDateTime(post.market?.biddingEndsAt),
         });
+        setExistingImages(post.images || (post.img ? [post.img] : []));
       } catch (requestError) {
         setError(requestError.message || "Failed to load listing");
       }
@@ -64,10 +67,25 @@ const PostEditor = () => {
     setError("");
 
     try {
-      const payload = {
-        ...form,
-        biddingEndsAt: form.biddingEndsAt ? new Date(form.biddingEndsAt).toISOString() : undefined,
-      };
+      if (!isEdit && selectedImages.length < 1) {
+        setError("Please upload at least 1 image");
+        return;
+      }
+
+      const payload = new FormData();
+      payload.append("slug", form.slug);
+      payload.append("title", form.title);
+      payload.append("desc", form.desc);
+      payload.append("content", form.content);
+      payload.append("category", form.category);
+
+      if (form.biddingEndsAt) {
+        payload.append("biddingEndsAt", new Date(form.biddingEndsAt).toISOString());
+      }
+
+      selectedImages.forEach((file) => {
+        payload.append("images", file);
+      });
 
       if (isEdit) {
         await api.updatePost(postId, payload, token);
@@ -81,6 +99,19 @@ const PostEditor = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const onImageSelect = (event) => {
+    const files = Array.from(event.target.files || []);
+
+    if (files.length > MAX_IMAGES) {
+      setError("Maximum 3 images are allowed");
+      setSelectedImages(files.slice(0, MAX_IMAGES));
+      return;
+    }
+
+    setError("");
+    setSelectedImages(files);
   };
 
   return (
@@ -121,12 +152,22 @@ const PostEditor = () => {
             className="border border-slate-300 rounded-xl p-3 min-h-40"
             required
           />
-          <input
-            value={form.img}
-            onChange={(event) => setForm((prev) => ({ ...prev, img: event.target.value }))}
-            placeholder="Image URL (optional)"
-            className="border border-slate-300 rounded-xl p-3"
-          />
+          <label className="text-sm text-slate-600">
+            Upload images (1 to 3)
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={onImageSelect}
+              className="mt-1 w-full border border-slate-300 rounded-xl p-3"
+            />
+          </label>
+          {isEdit && existingImages.length > 0 && selectedImages.length === 0 && (
+            <p className="text-xs text-slate-500">No new upload selected. Existing images will be kept.</p>
+          )}
+          {selectedImages.length > 0 && (
+            <p className="text-xs text-slate-500">Selected {selectedImages.length} image(s).</p>
+          )}
           <input
             value={form.category}
             onChange={(event) => setForm((prev) => ({ ...prev, category: event.target.value }))}
