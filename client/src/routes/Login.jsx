@@ -9,6 +9,9 @@ const Login = () => {
   const { completeLogin } = useAuth();
 
   const [credentials, setCredentials] = useState({ email: "", password: "" });
+  const [otpMethod, setOtpMethod] = useState("email");
+  const [activeOtpMethod, setActiveOtpMethod] = useState("email");
+  const [awaitingSecondFactor, setAwaitingSecondFactor] = useState(false);
   const [challengeId, setChallengeId] = useState("");
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
@@ -23,9 +26,12 @@ const Login = () => {
     setError("");
 
     try {
-      const response = await api.login(credentials);
-      setChallengeId(response.challengeId);
+      const response = await api.login({ ...credentials, otpMethod });
+      setChallengeId(response.challengeId || "");
       setDevOtpHint(response.devOtp || "");
+      setActiveOtpMethod(response.otpDelivery === "authenticator" ? "authenticator" : "email");
+      setOtp("");
+      setAwaitingSecondFactor(true);
     } catch (requestError) {
       setError(requestError.message || "Invalid credentials");
     } finally {
@@ -39,14 +45,16 @@ const Login = () => {
     setError("");
 
     try {
-      const response = await api.verify2FA(
-        {
-          email: credentials.email,
-          challengeId,
-          otp,
-        },
-        false
-      );
+      const payload = {
+        email: credentials.email,
+        otp,
+      };
+
+      if (challengeId) {
+        payload.challengeId = challengeId;
+      }
+
+      const response = await api.verify2FA(payload, false);
 
       await completeLogin(response.accessToken);
       navigate(targetPath, { replace: true });
@@ -67,7 +75,7 @@ const Login = () => {
 
         {error && <div className="mt-4 p-3 rounded-lg bg-rose-50 text-rose-700 text-sm">{error}</div>}
 
-        {!challengeId && (
+        {!awaitingSecondFactor && (
           <form onSubmit={submitCredentials} className="mt-5 space-y-3">
             <input
               type="email"
@@ -87,6 +95,31 @@ const Login = () => {
               placeholder="Password"
               required
             />
+
+            <div className="space-y-2 rounded-xl border border-slate-200 p-3 bg-slate-50">
+              <p className="text-sm font-medium text-slate-800">Choose login OTP option</p>
+              <label className="flex items-center gap-2 text-sm text-slate-700">
+                <input
+                  type="radio"
+                  name="otpMethod"
+                  value="email"
+                  checked={otpMethod === "email"}
+                  onChange={() => setOtpMethod("email")}
+                />
+                Send code to your Gmail
+              </label>
+              <label className="flex items-center gap-2 text-sm text-slate-700">
+                <input
+                  type="radio"
+                  name="otpMethod"
+                  value="authenticator"
+                  checked={otpMethod === "authenticator"}
+                  onChange={() => setOtpMethod("authenticator")}
+                />
+                Use code from Google Authenticator
+              </label>
+            </div>
+
             <button
               type="submit"
               disabled={loading}
@@ -97,9 +130,13 @@ const Login = () => {
           </form>
         )}
 
-        {challengeId && (
+        {awaitingSecondFactor && (
           <form onSubmit={submitOtp} className="mt-5 space-y-3">
-            <label className="text-sm text-slate-700 block">Enter your 6-digit email OTP or authenticator code</label>
+            <label className="text-sm text-slate-700 block">
+              {activeOtpMethod === "authenticator"
+                ? "Enter your 6-digit code from Google Authenticator"
+                : "Enter your 6-digit code sent to your Gmail"}
+            </label>
             <input
               type="text"
               value={otp}
@@ -109,7 +146,7 @@ const Login = () => {
               maxLength={6}
               required
             />
-            {devOtpHint && (
+            {devOtpHint && activeOtpMethod !== "authenticator" && (
               <p className="text-xs text-amber-700 bg-amber-50 p-2 rounded-lg">
                 Dev OTP (non-production only): <strong>{devOtpHint}</strong>
               </p>

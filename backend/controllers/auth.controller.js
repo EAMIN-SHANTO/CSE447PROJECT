@@ -31,6 +31,16 @@ const SHOULD_REQUIRE_SIGNUP_OTP =
 const BRACU_EMAIL_PATTERN = /^[^@\s]+@(g\.bracu\.ac\.bd|bracu\.ac\.bd|gmail\.com)$/;
 const signupOtpChallenges = new Map();
 
+const normalizeLoginOtpMethod = (method) => {
+  const value = String(method || "email").trim().toLowerCase();
+
+  if (["authenticator", "totp", "google-authenticator", "google"].includes(value)) {
+    return "authenticator";
+  }
+
+  return "email";
+};
+
 const normalizeEmail = (email) => String(email || "").trim().toLowerCase();
 
 const hashEmail = (email) => crypto.createHash("sha256").update(normalizeEmail(email)).digest("hex");
@@ -328,7 +338,7 @@ export const register = async (req, res) => {
 
 export const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, otpMethod } = req.body;
     const normalizedEmail = normalizeEmail(email);
 
     if (!email || !password) {
@@ -362,6 +372,32 @@ export const login = async (req, res) => {
 
     user.failedLoginAttempts = 0;
     user.lockUntil = null;
+
+    const selectedOtpMethod = normalizeLoginOtpMethod(otpMethod);
+
+    if (selectedOtpMethod === "authenticator") {
+      if (!user.twoFactor?.totpEnabled || !user.twoFactor?.totpSecretEncrypted?.ciphertext) {
+        return res.status(400).json({
+          message: "Authenticator is not enabled for this account. Choose email OTP or enable authenticator in Profile.",
+        });
+      }
+
+      user.twoFactor.challengeId = null;
+      user.twoFactor.otpSalt = null;
+      user.twoFactor.otpHash = null;
+      user.twoFactor.otpExpiresAt = null;
+      user.twoFactor.otpAttempts = 0;
+
+      await user.save();
+
+      return res.status(200).json({
+        message: "Primary credentials verified. Complete 2FA with authenticator code.",
+        challengeId: null,
+        twoFactorMethod: "totp",
+        totpEnabled: true,
+        otpDelivery: "authenticator",
+      });
+    }
 
     const otp = String(Math.floor(100000 + Math.random() * 900000));
     const otpSalt = createSalt();
