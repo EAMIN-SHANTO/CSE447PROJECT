@@ -6,7 +6,10 @@ const Footer = () => {
       <div className="max-w-7xl mx-auto px-4 py-8 flex flex-col md:flex-row justify-between items-center gap-3">
         <div>
           <p className="font-bold text-slate-900">CSE447 Secure Campus Marketplace</p>
-          <p className="text-sm text-slate-600">Cryptography-first trading for BRACU students.</p>
+          <p className="text-sm text-slate-600">
+            Listings are encrypted at rest, integrity-checked with MAC, and only tradable through controlled bid
+            locking plus dual confirmation.
+          </p>
         </div>
 
         <div className="flex items-center gap-4 text-sm">
