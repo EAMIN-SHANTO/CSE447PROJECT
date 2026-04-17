@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import UserAvatar from "../components/UserAvatar";
 import { useAuth } from "../context/useAuth";
 import { api } from "../lib/api";
 
@@ -119,8 +120,14 @@ const AdminDashboard = () => {
                 <div>
                   <h2 className="font-semibold text-slate-900">Dispute {dispute.id}</h2>
                   <p className="text-sm text-slate-600">Reason: {dispute.reason}</p>
-                  <p className="text-sm text-slate-600">Seller: @{dispute.seller?.pseudonym}</p>
-                  <p className="text-sm text-slate-600">Buyer: @{dispute.buyer?.pseudonym}</p>
+                  <div className="text-sm text-slate-600 flex items-center gap-2">
+                    <UserAvatar name={dispute.seller?.pseudonym} size="xs" />
+                    <p>Seller: @{dispute.seller?.pseudonym}</p>
+                  </div>
+                  <div className="text-sm text-slate-600 flex items-center gap-2">
+                    <UserAvatar name={dispute.buyer?.pseudonym} size="xs" />
+                    <p>Buyer: @{dispute.buyer?.pseudonym}</p>
+                  </div>
                 </div>
                 <span className="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-700">{dispute.status}</span>
               </div>
@@ -164,8 +171,14 @@ const AdminDashboard = () => {
               <div className="flex justify-between items-start gap-4">
                 <div>
                   <h2 className="font-semibold text-slate-900">Report {report._id}</h2>
-                  <p className="text-sm text-slate-600">Reporter: @{report.reporter?.pseudonym}</p>
-                  <p className="text-sm text-slate-600">Reported User: @{report.reportedUser?.pseudonym}</p>
+                  <div className="text-sm text-slate-600 flex items-center gap-2">
+                    <UserAvatar name={report.reporter?.pseudonym} size="xs" />
+                    <p>Reporter: @{report.reporter?.pseudonym}</p>
+                  </div>
+                  <div className="text-sm text-slate-600 flex items-center gap-2">
+                    <UserAvatar name={report.reportedUser?.pseudonym} size="xs" />
+                    <p>Reported User: @{report.reportedUser?.pseudonym}</p>
+                  </div>
                   <p className="text-sm text-slate-600">Reason: {report.reason}</p>
                 </div>
                 <span className="text-xs px-2 py-1 rounded-full bg-indigo-100 text-indigo-700">{report.status}</span>

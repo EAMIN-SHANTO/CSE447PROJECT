@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import CryptoStatusBadge from "../components/CryptoStatusBadge";
+import UserAvatar from "../components/UserAvatar";
 import { useAuth } from "../context/useAuth";
 import bg1 from "../img/bg1.webp";
 import { api } from "../lib/api";
@@ -95,7 +96,7 @@ const Homepage = () => {
   const lockedCount = visiblePosts.filter((post) => post.market?.isLocked).length;
 
   return (
-    <div className="relative overflow-hidden">
+    <div className="relative overflow-hidden bg-gradient-to-b from-blue-50/50 via-white to-white">
       <div className="relative max-w-7xl mx-auto px-4 py-8 space-y-6">
         <section className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
           <div className="grid lg:grid-cols-[1.1fr_0.9fr]">
@@ -113,7 +114,7 @@ const Homepage = () => {
                   onClick={() => setShowLocked((prev) => !prev)}
                   className={`px-4 py-2 rounded-xl border text-sm font-semibold transition-colors ${
                     showLocked
-                      ? "bg-slate-900 border-slate-900 text-white"
+                      ? "bg-blue-700 border-blue-700 text-white"
                       : "bg-white border-slate-300 text-slate-700 hover:bg-slate-50"
                   }`}
                 >
@@ -122,7 +123,7 @@ const Homepage = () => {
                 {isAuthenticated && (
                   <Link
                     to="/posts/new"
-                    className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-colors"
+                    className="px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors"
                   >
                     Create Listing
                   </Link>
@@ -130,7 +131,7 @@ const Homepage = () => {
                 {!isAuthenticated && (
                   <Link
                     to="/register"
-                    className="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 transition-colors"
+                    className="px-4 py-2 rounded-xl bg-blue-900 text-white text-sm font-semibold hover:bg-blue-950 transition-colors"
                   >
                     Register with BRACU Email
                   </Link>
@@ -171,7 +172,7 @@ const Homepage = () => {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search by title, description, category, seller"
-              className="px-4 py-2.5 rounded-xl border border-slate-300 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/15"
+              className="px-4 py-2.5 rounded-xl border border-slate-300 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-200"
             />
             <select
               value={sortBy}
@@ -184,7 +185,7 @@ const Homepage = () => {
               <option value="title-asc">Sort: Title A-Z</option>
               <option value="title-desc">Sort: Title Z-A</option>
             </select>
-            <div className="text-sm flex items-center justify-center rounded-xl bg-slate-100 px-4 py-2.5 text-slate-700 font-medium">
+            <div className="text-sm flex items-center justify-center rounded-xl bg-slate-100 px-4 py-2.5 text-slate-700 font-semibold border border-slate-200">
               {visiblePosts.length} results
             </div>
           </div>
@@ -203,7 +204,7 @@ const Homepage = () => {
           {paginatedPosts.map((post) => (
             <article
               key={post._id}
-              className="group bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all h-full"
+              className="group bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all h-full flex flex-col"
             >
               {post.img && (
                 <div className="relative">
@@ -216,14 +217,14 @@ const Homepage = () => {
                     }}
                   />
                   <div className="absolute top-3 left-3">
-                    <span className="text-xs px-2.5 py-1 rounded-full bg-white/90 text-slate-700 font-semibold">
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-white/95 text-slate-700 font-semibold border border-slate-200">
                       {post.category}
                     </span>
                   </div>
                 </div>
               )}
 
-              <div className="p-5 flex flex-col h-full">
+              <div className="p-5 flex flex-col flex-1">
                 <div className="flex justify-between items-start gap-3">
                   <h2 className="text-lg font-semibold text-slate-900 leading-tight">{post.title}</h2>
                   <div className="flex flex-wrap gap-1 justify-end">
@@ -235,7 +236,7 @@ const Homepage = () => {
 
                 {!post.img && (
                   <div className="mt-2">
-                    <span className="text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold">
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold border border-slate-200">
                       {post.category}
                     </span>
                   </div>
@@ -244,9 +245,16 @@ const Homepage = () => {
                 <p className="text-sm text-slate-600 mt-2 line-clamp-2 min-h-10">{post.desc}</p>
 
                 <div className="mt-4 text-xs text-slate-500 space-y-1.5">
-                  <p>
-                    Seller: <span className="font-semibold text-slate-700">@{post.seller?.pseudonym}</span>
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <UserAvatar name={post.seller?.pseudonym} size="xs" />
+                    <p>
+                      Seller: <span className="font-semibold text-slate-700">@{post.seller?.pseudonym}</span>
+                      {" · "}
+                      <span className="font-semibold text-amber-600">
+                        ★ {Number(post.seller?.trust?.ratingAverage ?? 5).toFixed(1)} ({Number(post.seller?.trust?.ratingCount || 0)})
+                      </span>
+                    </p>
+                  </div>
                   <p>
                     Status: <span className="font-semibold text-slate-700">{post.market?.status}</span>
                   </p>
@@ -261,7 +269,7 @@ const Homepage = () => {
                 <div className="mt-auto pt-5">
                   <Link
                     to={`/posts/${post.slug}`}
-                    className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 text-white text-sm font-semibold py-2.5 hover:bg-slate-800 transition-colors"
+                    className="inline-flex w-full items-center justify-center rounded-xl bg-blue-700 text-white text-sm font-semibold py-2.5 hover:bg-blue-800 transition-colors"
                   >
                     View Details
                   </Link>
@@ -277,7 +285,7 @@ const Homepage = () => {
               type="button"
               disabled={page <= 1}
               onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-              className="px-3 py-1.5 rounded-lg bg-slate-200 text-slate-800 text-sm disabled:opacity-50"
+              className="px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 text-sm disabled:opacity-50"
             >
               Prev
             </button>
@@ -288,7 +296,7 @@ const Homepage = () => {
               type="button"
               disabled={page >= totalPages}
               onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
-              className="px-3 py-1.5 rounded-lg bg-slate-200 text-slate-800 text-sm disabled:opacity-50"
+              className="px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 text-sm disabled:opacity-50"
             >
               Next
             </button>

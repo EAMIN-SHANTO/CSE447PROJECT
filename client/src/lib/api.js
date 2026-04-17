@@ -66,6 +66,8 @@ export const api = {
   getTransaction: (bidId, token) => request(`/bids/${bidId}/transaction`, { token }),
   confirmTransaction: (bidId, payload, token) =>
     request(`/bids/${bidId}/confirm`, { method: "POST", body: payload, token }),
+  rateSeller: (bidId, payload, token) =>
+    request(`/bids/${bidId}/rate`, { method: "POST", body: payload, token }),
 
   getAdminStatus: (token) => request("/admin/status", { token }),
   listAdminDisputes: (token) => request("/admin/disputes", { token }),

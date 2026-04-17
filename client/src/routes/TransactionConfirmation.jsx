@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import CryptoStatusBadge from "../components/CryptoStatusBadge";
+import UserAvatar from "../components/UserAvatar";
 import { useAuth } from "../context/useAuth";
 import { api } from "../lib/api";
 
@@ -12,6 +13,7 @@ const TransactionConfirmation = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [form, setForm] = useState({ outcome: "completed", exchangeCode: "", note: "" });
+  const [ratingForm, setRatingForm] = useState({ score: "5", note: "" });
   const [message, setMessage] = useState("");
   const [storedExchangeCode, setStoredExchangeCode] = useState("");
   const [storedExchangeExpiresAt, setStoredExchangeExpiresAt] = useState("");
@@ -61,6 +63,26 @@ const TransactionConfirmation = () => {
     }
   };
 
+  const submitSellerRating = async (event) => {
+    event.preventDefault();
+
+    try {
+      const response = await api.rateSeller(
+        bidId,
+        {
+          score: Number(ratingForm.score),
+          note: ratingForm.note,
+        },
+        token
+      );
+      setMessage(response.message || "Seller rating submitted.");
+      setRatingForm({ score: "5", note: "" });
+      await load();
+    } catch (requestError) {
+      setMessage(requestError.message || "Failed to submit seller rating");
+    }
+  };
+
   useEffect(() => {
     if (!bidId || actorRole !== "seller") {
       return;
@@ -94,6 +116,8 @@ const TransactionConfirmation = () => {
   const actorConfirmationStatus = actorRole ? bid.transaction?.confirmations?.[actorRole]?.status : "pending";
   const alreadyConfirmed = actorRole && actorConfirmationStatus && actorConfirmationStatus !== "pending";
   const canSubmitConfirmation = isConfirmableStatus && !alreadyConfirmed;
+  const hasSellerBeenRated = Boolean(bid.transaction?.buyerToSellerRating?.score);
+  const canBuyerRateSeller = actorRole === "buyer" && bid.status === "completed" && !hasSellerBeenRated;
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
@@ -113,11 +137,17 @@ const TransactionConfirmation = () => {
         <div className="grid md:grid-cols-2 gap-4 text-sm">
           <div className="p-4 rounded-xl bg-slate-50">
             <p className="text-slate-500">Seller</p>
-            <p className="font-semibold text-slate-900">@{bid.seller?.pseudonym}</p>
+            <div className="mt-1 flex items-center gap-2">
+              <UserAvatar name={bid.seller?.pseudonym} size="sm" />
+              <p className="font-semibold text-slate-900">@{bid.seller?.pseudonym}</p>
+            </div>
           </div>
           <div className="p-4 rounded-xl bg-slate-50">
             <p className="text-slate-500">Buyer</p>
-            <p className="font-semibold text-slate-900">@{bid.bidder?.pseudonym}</p>
+            <div className="mt-1 flex items-center gap-2">
+              <UserAvatar name={bid.bidder?.pseudonym} size="sm" />
+              <p className="font-semibold text-slate-900">@{bid.bidder?.pseudonym}</p>
+            </div>
           </div>
           <div className="p-4 rounded-xl bg-slate-50">
             <p className="text-slate-500">Offer Amount</p>
@@ -237,8 +267,58 @@ const TransactionConfirmation = () => {
           <p>
             Dispute status: <strong>{bid.transaction?.disputeStatus || "none"}</strong>
           </p>
-          <p className="mt-2">Logged in as @{profile?.pseudonym} ({actorRole || "viewer"}).</p>
+          <div className="mt-2 flex items-center gap-2">
+            <UserAvatar name={profile?.pseudonym} size="xs" />
+            <p>Logged in as @{profile?.pseudonym} ({actorRole || "viewer"}).</p>
+          </div>
         </div>
+
+        {(canBuyerRateSeller || hasSellerBeenRated) && (
+          <div className="mt-6 pt-5 border-t border-slate-200">
+            <h3 className="text-base font-semibold text-slate-900">Rate Seller</h3>
+            <p className="text-sm text-slate-600 mt-1">
+              Buyer can submit a one-time rating after successful completion.
+            </p>
+
+            {hasSellerBeenRated && (
+              <div className="mt-3 p-3 rounded-lg bg-amber-50 text-amber-700 text-sm">
+                You rated this seller{" "}
+                <strong>{bid.transaction?.buyerToSellerRating?.score}/5</strong>
+                {bid.transaction?.buyerToSellerRating?.note
+                  ? ` — ${bid.transaction.buyerToSellerRating.note}`
+                  : ""}
+              </div>
+            )}
+
+            {canBuyerRateSeller && (
+              <form onSubmit={submitSellerRating} className="mt-4 space-y-3 max-w-xl">
+                <select
+                  value={ratingForm.score}
+                  onChange={(event) => setRatingForm((prev) => ({ ...prev, score: event.target.value }))}
+                  className="w-full border border-slate-300 rounded-xl p-3"
+                >
+                  <option value="5">5 - Excellent</option>
+                  <option value="4">4 - Good</option>
+                  <option value="3">3 - Average</option>
+                  <option value="2">2 - Poor</option>
+                  <option value="1">1 - Very Poor</option>
+                </select>
+                <textarea
+                  value={ratingForm.note}
+                  onChange={(event) => setRatingForm((prev) => ({ ...prev, note: event.target.value }))}
+                  className="w-full border border-slate-300 rounded-xl p-3 min-h-20"
+                  placeholder="Optional rating note"
+                />
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700"
+                >
+                  Submit Rating
+                </button>
+              </form>
+            )}
+          </div>
+        )}
       </section>
     </div>
   );

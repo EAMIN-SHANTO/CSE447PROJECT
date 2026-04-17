@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import UserAvatar from "../components/UserAvatar";
 import { useAuth } from "../context/useAuth";
 
 const Navbar = () => {
@@ -71,7 +72,10 @@ const Navbar = () => {
             )}
             {isAuthenticated && (
               <>
-                <span className="text-sm text-slate-600 pr-2">@{profile?.pseudonym}</span>
+                <div className="flex items-center gap-2 px-2 py-1 rounded-full border border-slate-200 bg-slate-50">
+                  <UserAvatar name={profile?.pseudonym} size="sm" />
+                  <span className="text-sm text-slate-700 pr-1 font-medium">@{profile?.pseudonym}</span>
+                </div>
                 <button
                   type="button"
                   onClick={logout}
@@ -98,6 +102,13 @@ const Navbar = () => {
 
       {isMobileMenuOpen && (
         <div className="lg:hidden border-t border-slate-200 bg-white px-4 py-3 space-y-2">
+          {isAuthenticated && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200">
+              <UserAvatar name={profile?.pseudonym} size="sm" />
+              <p className="text-sm font-medium text-slate-700">@{profile?.pseudonym}</p>
+            </div>
+          )}
+
           {baseLinks.map((item) => (
             <Link
               key={item.path}
@@ -139,7 +150,7 @@ const Navbar = () => {
               }}
               className="w-full text-left px-3 py-2 rounded-lg text-sm font-semibold text-white bg-rose-600"
             >
-              Logout @{profile?.pseudonym}
+              Logout
             </button>
           )}
         </div>

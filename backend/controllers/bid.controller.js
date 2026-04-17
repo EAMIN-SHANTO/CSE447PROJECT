@@ -23,6 +23,8 @@ const resolveUserTrust = async (userId) => {
       campusVerified: Boolean(user?.trust?.campusVerified),
       successfulTradeCount: user?.trust?.successfulTradeCount || 0,
       reportsReceived: user?.trust?.reportsReceived || 0,
+      ratingCount: user?.trust?.ratingCount || 0,
+      ratingAverage: Number(user?.trust?.ratingAverage ?? 5),
     },
   };
 };
@@ -118,6 +120,11 @@ const toSafeBid = async (bidDoc, includeTransaction = false) => {
       },
       disputeStatus: bid.transaction?.disputeStatus || "none",
       disputeId: bid.transaction?.disputeId || null,
+      buyerToSellerRating: bid.transaction?.buyerToSellerRating || {
+        score: null,
+        note: "",
+        ratedAt: null,
+      },
     };
   }
 
@@ -364,6 +371,11 @@ export const acceptBid = async (req, res) => {
       },
       disputeStatus: "none",
       disputeId: null,
+      buyerToSellerRating: {
+        score: null,
+        note: "",
+        ratedAt: null,
+      },
     };
 
     await bid.save();
@@ -558,5 +570,83 @@ export const confirmBidHandoff = async (req, res) => {
     });
   } catch (error) {
     return res.status(500).json({ message: "Failed to confirm handoff" });
+  }
+};
+
+export const rateSellerFromBid = async (req, res) => {
+  try {
+    const { bidId } = req.params;
+    const actorId = req.auth?.userId;
+    const { score, note = "" } = req.body;
+
+    const normalizedScore = Number(score);
+
+    if (!Number.isInteger(normalizedScore) || normalizedScore < 1 || normalizedScore > 5) {
+      return res.status(400).json({ message: "score must be an integer between 1 and 5" });
+    }
+
+    const bid = await Bid.findById(bidId);
+
+    if (!bid) {
+      return res.status(404).json({ message: "Bid not found" });
+    }
+
+    if (String(bid.bidder) !== String(actorId)) {
+      return res.status(403).json({ message: "Only the buyer can rate this seller" });
+    }
+
+    if (bid.status !== "completed") {
+      return res.status(409).json({ message: "Rating is available only after transaction completion" });
+    }
+
+    if (!bid.transaction) {
+      return res.status(409).json({ message: "Transaction package not found for this bid" });
+    }
+
+    if (bid.transaction?.buyerToSellerRating?.score) {
+      return res.status(409).json({ message: "Seller has already been rated for this transaction" });
+    }
+
+    const seller = await User.findById(bid.seller);
+
+    if (!seller) {
+      return res.status(404).json({ message: "Seller account not found" });
+    }
+
+    bid.transaction.buyerToSellerRating = {
+      score: normalizedScore,
+      note: String(note),
+      ratedAt: new Date(),
+    };
+
+    const currentCount = Number(seller.trust?.ratingCount || 0);
+    const currentTotal = Number(seller.trust?.ratingTotal || 0);
+    const nextCount = currentCount + 1;
+    const nextTotal = currentTotal + normalizedScore;
+    const nextAverage = Number((nextTotal / nextCount).toFixed(2));
+
+    if (!seller.trust) {
+      seller.trust = {};
+    }
+
+    seller.trust.ratingCount = nextCount;
+    seller.trust.ratingTotal = nextTotal;
+    seller.trust.ratingAverage = nextAverage;
+
+    await Promise.all([bid.save(), seller.save()]);
+
+    return res.status(200).json({
+      message: "Seller rating submitted",
+      rating: {
+        score: normalizedScore,
+        note: String(note),
+      },
+      sellerTrust: {
+        ratingCount: nextCount,
+        ratingAverage: nextAverage,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ message: "Failed to submit rating" });
   }
 };

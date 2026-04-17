@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import CryptoStatusBadge from "../components/CryptoStatusBadge";
+import UserAvatar from "../components/UserAvatar";
 import { useAuth } from "../context/useAuth";
 import { api } from "../lib/api";
 
@@ -138,7 +139,10 @@ const MyBids = () => {
             <div className="flex justify-between items-start gap-4">
               <div>
                 <h2 className="text-lg font-semibold text-slate-900">{post.title}</h2>
-                <p className="text-sm text-slate-500">Seller @{bid.seller?.pseudonym}</p>
+                <div className="text-sm text-slate-500 flex items-center gap-2">
+                  <UserAvatar name={bid.seller?.pseudonym} size="xs" />
+                  <p>Seller @{bid.seller?.pseudonym}</p>
+                </div>
                 <p className="text-sm text-slate-700 mt-1">Offer: BDT {bid.offerAmount}</p>
                 <p className="text-sm text-slate-700">Status: {bid.status}</p>
               </div>

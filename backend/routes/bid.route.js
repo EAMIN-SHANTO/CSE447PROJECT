@@ -5,6 +5,7 @@ import {
 	createBid,
 	getBidTransactionPackage,
 	listBidsByPost,
+	rateSellerFromBid,
 } from "../controllers/bid.controller.js";
 import { authenticate } from "../middleware/authenticate.js";
 
@@ -15,5 +16,6 @@ router.post("/", authenticate, createBid);
 router.post("/:bidId/accept", authenticate, acceptBid);
 router.get("/:bidId/transaction", authenticate, getBidTransactionPackage);
 router.post("/:bidId/confirm", authenticate, confirmBidHandoff);
+router.post("/:bidId/rate", authenticate, rateSellerFromBid);
 
 export default router;

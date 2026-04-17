@@ -47,6 +47,8 @@ const shapeProfileResponse = (user, fields) => ({
     verifiedCampusBadge: Boolean(user.trust?.campusVerified),
     successfulTradeCount: user.trust?.successfulTradeCount || 0,
     reportsReceived: user.trust?.reportsReceived || 0,
+    ratingCount: user.trust?.ratingCount || 0,
+    ratingAverage: Number(user.trust?.ratingAverage ?? 5),
   },
 });
 

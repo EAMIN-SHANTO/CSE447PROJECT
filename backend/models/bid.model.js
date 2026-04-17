@@ -152,6 +152,22 @@ const bidSchema = new Schema(
         ref: "TradeDispute",
         default: null,
       },
+      buyerToSellerRating: {
+        score: {
+          type: Number,
+          min: 1,
+          max: 5,
+          default: null,
+        },
+        note: {
+          type: String,
+          default: "",
+        },
+        ratedAt: {
+          type: Date,
+          default: null,
+        },
+      },
     },
   },
   { timestamps: true }

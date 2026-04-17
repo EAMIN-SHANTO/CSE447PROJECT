@@ -90,6 +90,18 @@ const userSchema = new Schema(
         type: Number,
         default: 0,
       },
+      ratingCount: {
+        type: Number,
+        default: 0,
+      },
+      ratingTotal: {
+        type: Number,
+        default: 0,
+      },
+      ratingAverage: {
+        type: Number,
+        default: 5,
+      },
     },
     twoFactor: {
       enabled: {

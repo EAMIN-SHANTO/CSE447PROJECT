@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import CryptoStatusBadge from "../components/CryptoStatusBadge";
+import UserAvatar from "../components/UserAvatar";
 import { useAuth } from "../context/useAuth";
 import { api } from "../lib/api";
 
@@ -149,7 +150,12 @@ const PostDetail = () => {
         <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
           <div>
             <h1 className="text-3xl font-bold text-slate-900">{post.title}</h1>
-            <p className="text-sm text-slate-500 mt-1">Seller: @{post.seller?.pseudonym}</p>
+            <div className="text-sm text-slate-500 mt-2 flex items-center gap-2">
+              <UserAvatar name={post.seller?.pseudonym} size="xs" />
+              <p>
+                Seller: <span className="font-semibold text-slate-700">@{post.seller?.pseudonym}</span>
+              </p>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
             <CryptoStatusBadge label="Encrypted" />
@@ -260,7 +266,10 @@ const PostDetail = () => {
             {comments.length === 0 && <p className="text-sm text-slate-500">No comments yet.</p>}
             {comments.map((comment) => (
               <article key={comment._id} className="rounded-xl border border-slate-200 p-3">
-                <p className="text-xs text-slate-500 mb-1">@{comment.author?.pseudonym}</p>
+                <div className="flex items-center gap-2 mb-1">
+                  <UserAvatar name={comment.author?.pseudonym} size="xs" />
+                  <p className="text-xs text-slate-500">@{comment.author?.pseudonym}</p>
+                </div>
                 <p className="text-sm text-slate-800">{comment.content}</p>
               </article>
             ))}
@@ -326,7 +335,10 @@ const PostDetail = () => {
               return (
                 <article key={bid._id} className="rounded-xl border border-slate-200 p-3 space-y-2">
                   <div className="flex justify-between text-sm">
-                    <p className="text-slate-500">Bidder @{bid.bidder?.pseudonym}</p>
+                    <div className="flex items-center gap-2">
+                      <UserAvatar name={bid.bidder?.pseudonym} size="xs" />
+                      <p className="text-slate-500">Bidder @{bid.bidder?.pseudonym}</p>
+                    </div>
                     <p className="font-semibold text-slate-900">BDT {bid.offerAmount}</p>
                   </div>
                   <p className="text-sm text-slate-700">{bid.note}</p>

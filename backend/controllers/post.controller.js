@@ -52,6 +52,8 @@ const resolveSeller = async (userId) => {
       verifiedCampusBadge: Boolean(seller?.trust?.campusVerified),
       successfulTradeCount: seller?.trust?.successfulTradeCount || 0,
       reportsReceived: seller?.trust?.reportsReceived || 0,
+      ratingCount: seller?.trust?.ratingCount || 0,
+      ratingAverage: Number(seller?.trust?.ratingAverage ?? 5),
     },
   };
 };

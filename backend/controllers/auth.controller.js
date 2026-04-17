@@ -320,6 +320,9 @@ export const register = async (req, res) => {
         campusVerified: true,
         successfulTradeCount: 0,
         reportsReceived: 0,
+        ratingCount: 0,
+        ratingTotal: 0,
+        ratingAverage: 5,
       },
       twoFactor: {
         enabled: true,
