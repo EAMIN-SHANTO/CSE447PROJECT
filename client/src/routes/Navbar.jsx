@@ -23,6 +23,7 @@ const Navbar = () => {
             { path: "/posts/new", label: "Create" },
             { path: "/my-listings", label: "My Listings" },
             { path: "/my-bids", label: "My Bids" },
+            { path: "/inbox", label: "Inbox" },
             { path: "/profile", label: "Profile" },
             ...(profile?.role === "admin" ? [{ path: "/admin", label: "Admin" }] : []),
           ]

@@ -69,6 +69,13 @@ export const api = {
   rateSeller: (bidId, payload, token) =>
     request(`/bids/${bidId}/rate`, { method: "POST", body: payload, token }),
 
+  sendInquiryMessage: (postId, payload, token) =>
+    request(`/messages/inquiry/${postId}`, { method: "POST", body: payload, token }),
+  getInbox: (token) => request("/messages/inbox", { token }),
+  getConversationMessages: (conversationId, token) => request(`/messages/conversations/${conversationId}`, { token }),
+  replyToConversation: (conversationId, payload, token) =>
+    request(`/messages/conversations/${conversationId}`, { method: "POST", body: payload, token }),
+
   getAdminStatus: (token) => request("/admin/status", { token }),
   listAdminDisputes: (token) => request("/admin/disputes", { token }),
   resolveAdminDispute: (disputeId, payload, token) =>

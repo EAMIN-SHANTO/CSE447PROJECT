@@ -16,6 +16,7 @@ const PostDetail = () => {
   const [error, setError] = useState("");
   const [commentInput, setCommentInput] = useState("");
   const [bidInput, setBidInput] = useState({ offerAmount: "", note: "" });
+  const [inquiryInput, setInquiryInput] = useState("");
   const [meetupInput, setMeetupInput] = useState({ meetupLocation: "", meetupTime: "", meetupNote: "" });
   const [actionMessage, setActionMessage] = useState("");
   const [latestExchangePackage, setLatestExchangePackage] = useState(null);
@@ -97,6 +98,22 @@ const PostDetail = () => {
       await loadPostData();
     } catch (requestError) {
       setActionMessage(requestError.message || "Could not submit bid");
+    }
+  };
+
+  const handleInquirySubmit = async (event) => {
+    event.preventDefault();
+
+    if (!post?._id || !token || !inquiryInput.trim()) {
+      return;
+    }
+
+    try {
+      await api.sendInquiryMessage(post._id, { content: inquiryInput.trim() }, token);
+      setInquiryInput("");
+      setActionMessage("Inquiry sent. Continue the conversation from Inbox.");
+    } catch (requestError) {
+      setActionMessage(requestError.message || "Failed to send inquiry message");
     }
   };
 
@@ -206,6 +223,44 @@ const PostDetail = () => {
             >
               Edit Listing
             </Link>
+          </div>
+        )}
+
+        {!isSeller && (
+          <div className="mt-6 p-4 rounded-xl border border-slate-200 bg-slate-50">
+            <h3 className="text-sm font-semibold text-slate-900 mb-2">Message Seller (Inquiry)</h3>
+
+            {!token && (
+              <p className="text-sm text-slate-600">
+                Please <Link to="/login" className="text-indigo-700 font-semibold">log in</Link> to send inquiry messages.
+              </p>
+            )}
+
+            {token && (
+              <form onSubmit={handleInquirySubmit} className="space-y-2">
+                <textarea
+                  value={inquiryInput}
+                  onChange={(event) => setInquiryInput(event.target.value)}
+                  className="w-full border border-slate-300 rounded-xl p-3 min-h-20"
+                  placeholder="Ask about condition, price, meetup preference, etc."
+                  required
+                />
+                <div className="flex items-center gap-2">
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium"
+                  >
+                    Send Inquiry
+                  </button>
+                  <Link
+                    to="/inbox"
+                    className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 text-sm font-medium"
+                  >
+                    Open Inbox
+                  </Link>
+                </div>
+              </form>
+            )}
           </div>
         )}
       </section>

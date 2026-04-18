@@ -4,6 +4,7 @@ import Homepage from "./routes/Homepage";
 import AdminDashboard from "./routes/AdminDashboard";
 import Layout from "./routes/Layout";
 import Login from "./routes/Login";
+import Inbox from "./routes/Inbox";
 import MyBids from "./routes/MyBids";
 import MyListings from "./routes/MyListings";
 import PostDetail from "./routes/PostDetail";
@@ -33,6 +34,14 @@ const App = () => (
           element={
             <ProtectedRoute>
               <PostEditor />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/inbox"
+          element={
+            <ProtectedRoute>
+              <Inbox />
             </ProtectedRoute>
           }
         />

@@ -10,6 +10,7 @@ import bidRouter from './routes/bid.route.js';
 import commentRouter from './routes/comment.route.js';
 import adminRouter from './routes/admin.route.js';
 import keyRouter from './routes/key.route.js';
+import messageRouter from './routes/message.route.js';
 import connectDB from './lib/connectDB.js';
 
 
@@ -37,6 +38,7 @@ app.use('/bids', bidRouter);
 app.use('/comments', commentRouter);
 app.use('/admin', adminRouter);
 app.use('/keys', keyRouter);
+app.use('/messages', messageRouter);
 
 app.get('/health', (req, res) => {
     res.status(200).json({ status: 'ok' });
