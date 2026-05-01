@@ -83,6 +83,12 @@ export const api = {
   listAdminReports: (token) => request("/admin/reports", { token }),
   resolveAdminReport: (reportId, payload, token) =>
     request(`/admin/reports/${reportId}`, { method: "PATCH", body: payload, token }),
+  listAdminAuditLogs: (token) => request("/admin/audit-logs", { token }),
+  listAdminUsers: (token) => request("/admin/users", { token }),
+  toggleAdminUserBan: (userId, isBanned, token) =>
+    request(`/admin/users/${userId}/ban`, { method: "PATCH", body: { isBanned }, token }),
+  toggleAdminUserRole: (userId, role, token) =>
+    request(`/admin/users/${userId}/role`, { method: "PATCH", body: { role }, token }),
 };
 
 export { API_BASE };

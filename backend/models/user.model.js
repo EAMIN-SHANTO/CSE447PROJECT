@@ -48,7 +48,7 @@ const userSchema = new Schema(
     },
     role: {
       type: String,
-      enum: ["user", "admin"],
+      enum: ["user", "staff", "admin"],
       default: "user",
       index: true,
     },
@@ -142,32 +142,12 @@ const userSchema = new Schema(
         default: false,
       },
       totpSecretEncrypted: {
-        iv: {
-          type: String,
-          default: null,
-        },
-        tag: {
-          type: String,
-          default: null,
-        },
-        ciphertext: {
-          type: String,
-          default: null,
-        },
+        type: Schema.Types.Mixed,
+        default: null,
       },
       totpPendingSecretEncrypted: {
-        iv: {
-          type: String,
-          default: null,
-        },
-        tag: {
-          type: String,
-          default: null,
-        },
-        ciphertext: {
-          type: String,
-          default: null,
-        },
+        type: Schema.Types.Mixed,
+        default: null,
       },
       totpSetupStartedAt: {
         type: Date,
@@ -180,7 +160,7 @@ const userSchema = new Schema(
     },
     accountStatus: {
       type: String,
-      enum: ["active", "locked"],
+      enum: ["active", "locked", "banned"],
       default: "active",
     },
     failedLoginAttempts: {

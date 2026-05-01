@@ -26,7 +26,7 @@ const Navbar = () => {
             { path: "/my-bids", label: "My Bids" },
             { path: "/inbox", label: "Inbox" },
             { path: "/profile", label: "Profile" },
-            ...(profile?.role === "admin" ? [{ path: "/admin", label: "Admin" }] : []),
+            ...(["admin", "staff"].includes(profile?.role) ? [{ path: "/admin", label: profile?.role === "admin" ? "Admin" : "Staff" }] : []),
           ]
         : []),
     ],

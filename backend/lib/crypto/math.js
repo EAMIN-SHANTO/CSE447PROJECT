@@ -27,18 +27,20 @@ export const extendedGcd = (a, b) => {
   let r = b;
   let oldS = ONE;
   let s = ZERO;
-  let oldT = ZERO;
-  let t = ONE;
 
   while (r !== ZERO) {
     const q = oldR / r;
-
-    [oldR, r] = [r, oldR - q * r];
-    [oldS, s] = [s, oldS - q * s];
-    [oldT, t] = [t, oldT - q * t];
+    
+    const tempR = r;
+    r = oldR - q * r;
+    oldR = tempR;
+    
+    const tempS = s;
+    s = oldS - q * s;
+    oldS = tempS;
   }
 
-  return { gcd: oldR, x: oldS, y: oldT };
+  return { gcd: oldR, x: oldS };
 };
 
 export const modInverse = (a, m) => {

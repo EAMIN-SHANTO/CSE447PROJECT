@@ -1,4 +1,4 @@
-import connectDB from './lib/connectDB.js';
+import connectDB from '../lib/connectDB.js';
 
 async function testConnection() {
   try {

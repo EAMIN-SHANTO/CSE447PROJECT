@@ -9,6 +9,9 @@ const AdminDashboard = () => {
   const [status, setStatus] = useState(null);
   const [disputes, setDisputes] = useState([]);
   const [reports, setReports] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -18,15 +21,21 @@ const AdminDashboard = () => {
     setError("");
 
     try {
-      const [statusData, disputeData, reportData] = await Promise.all([
+      const [statusData, disputeData, reportData, auditData, usersData, postsData] = await Promise.all([
         api.getAdminStatus(token),
         api.listAdminDisputes(token),
         api.listAdminReports(token),
+        api.listAdminAuditLogs(token).catch(() => ({ logs: [] })),
+        api.listAdminUsers(token),
+        api.listPosts(),
       ]);
 
       setStatus(statusData);
       setDisputes(disputeData.disputes || []);
       setReports(reportData.reports || []);
+      setAuditLogs(auditData.logs || []);
+      setUsers(usersData.users || []);
+      setPosts(postsData || []);
     } catch (requestError) {
       setError(requestError.message || "Failed to load admin dashboard");
     } finally {
@@ -59,6 +68,40 @@ const AdminDashboard = () => {
       await load();
     } catch (requestError) {
       setMessage(requestError.message || "Failed to resolve report");
+    }
+  };
+
+  const handleToggleRole = async (userId, currentRole) => {
+    try {
+      const nextRole = currentRole === "staff" ? "user" : "staff";
+      if (!window.confirm(`Are you sure you want to change this user to ${nextRole}?`)) return;
+      await api.toggleAdminUserRole(userId, nextRole, token);
+      setMessage(`User role successfully changed to ${nextRole}`);
+      await load();
+    } catch (requestError) {
+      setMessage(requestError.message || "Failed to update user role");
+    }
+  };
+
+  const handleToggleBan = async (userId, currentStatus) => {
+    try {
+      const isBanned = currentStatus !== "banned";
+      await api.toggleAdminUserBan(userId, isBanned, token);
+      setMessage(`User successfully ${isBanned ? "banned" : "unbanned"}`);
+      await load();
+    } catch (requestError) {
+      setMessage(requestError.message || "Failed to update user status");
+    }
+  };
+
+  const handleDeletePost = async (postId) => {
+    if (!window.confirm("Are you sure you want to permanently delete this post?")) return;
+    try {
+      await api.deletePost(postId, token);
+      setMessage("Post successfully deleted");
+      await load();
+    } catch (requestError) {
+      setMessage(requestError.message || "Failed to delete post");
     }
   };
 
@@ -105,6 +148,35 @@ const AdminDashboard = () => {
           }`}
         >
           Reports
+        </button>
+        {status?.actor?.role === "admin" && (
+          <button
+            type="button"
+            onClick={() => setActiveTab("audit")}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold ${
+              activeTab === "audit" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700"
+            }`}
+          >
+            Audit Logs
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => setActiveTab("users")}
+          className={`px-4 py-2 rounded-lg text-sm font-semibold ${
+            activeTab === "users" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700"
+          }`}
+        >
+          Users
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("posts")}
+          className={`px-4 py-2 rounded-lg text-sm font-semibold ${
+            activeTab === "posts" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700"
+          }`}
+        >
+          Posts
         </button>
       </div>
 
@@ -205,6 +277,110 @@ const AdminDashboard = () => {
                   className="px-3 py-1.5 rounded-lg bg-rose-600 text-white text-xs font-semibold"
                 >
                   Dismiss
+                </button>
+              </div>
+            </article>
+          ))}
+        </section>
+      )}
+
+      {status?.actor?.role === "admin" && activeTab === "audit" && (
+        <section className="space-y-3">
+          {auditLogs.length === 0 && (
+            <div className="p-8 bg-white border border-slate-200 rounded-2xl text-slate-600">No audit logs found.</div>
+          )}
+
+          {auditLogs.map((log) => (
+            <article key={log._id} className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col gap-2">
+              <div className="flex justify-between items-start">
+                <div className="flex items-center gap-2">
+                  <UserAvatar name={log.actor?.pseudonym} size="xs" />
+                  <span className="font-semibold text-slate-900">@{log.actor?.pseudonym}</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">{log.actor?.role}</span>
+                </div>
+                <span className="text-xs text-slate-500">{new Date(log.createdAt).toLocaleString()}</span>
+              </div>
+              <div>
+                <span className="px-2 py-1 text-xs font-bold rounded bg-blue-50 text-blue-700 uppercase">{log.action}</span>
+                <span className="text-sm text-slate-700 ml-3">{log.details}</span>
+              </div>
+            </article>
+          ))}
+        </section>
+      )}
+
+      {activeTab === "users" && (
+        <section className="space-y-3">
+          {users.length === 0 && (
+            <div className="p-8 bg-white border border-slate-200 rounded-2xl text-slate-600">No users found.</div>
+          )}
+
+          {users.map((user) => (
+            <article key={user._id} className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col gap-2">
+              <div className="flex justify-between items-start">
+                <div className="flex items-center gap-2">
+                  <UserAvatar name={user.pseudonym} size="md" />
+                  <div>
+                    <h2 className="font-semibold text-slate-900">@{user.pseudonym}</h2>
+                    <div className="flex gap-2 mt-1">
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 capitalize">{user.role}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${user.accountStatus === 'banned' ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'} capitalize`}>
+                        {user.accountStatus}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  {status?.actor?.role === "admin" && user.role !== "admin" && (
+                    <button
+                      onClick={() => handleToggleRole(user._id, user.role)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white"
+                    >
+                      {user.role === "staff" ? "Demote to User" : "Promote to Staff"}
+                    </button>
+                  )}
+                  {user.role !== "admin" && (
+                    <button
+                      onClick={() => handleToggleBan(user._id, user.accountStatus)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
+                        user.accountStatus === "banned" ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "bg-rose-600 hover:bg-rose-700 text-white"
+                      }`}
+                    >
+                      {user.accountStatus === "banned" ? "Unban User" : "Ban User"}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </article>
+          ))}
+        </section>
+      )}
+
+      {activeTab === "posts" && (
+        <section className="space-y-3">
+          {posts.length === 0 && (
+            <div className="p-8 bg-white border border-slate-200 rounded-2xl text-slate-600">No posts found.</div>
+          )}
+
+          {posts.map((post) => (
+            <article key={post._id} className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col gap-2">
+              <div className="flex justify-between items-start">
+                <div className="flex items-center gap-3">
+                  {post.img ? (
+                    <img src={post.img} alt="" className="w-12 h-12 rounded object-cover" />
+                  ) : (
+                    <div className="w-12 h-12 rounded bg-slate-100" />
+                  )}
+                  <div>
+                    <h2 className="font-semibold text-slate-900">{post.title || "Untitled Post"}</h2>
+                    <p className="text-xs text-slate-500">By @{post.seller?.pseudonym || "unknown"} • Status: {post.market?.status || "open"}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleDeletePost(post._id)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white"
+                >
+                  Delete Post
                 </button>
               </div>
             </article>

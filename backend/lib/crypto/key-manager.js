@@ -15,6 +15,9 @@ import { randomMacKey } from "./mac.js";
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_KEY_TTL_DAYS = 30;
 
+// Simple in-memory cache to prevent expensive DB lookups and RSA decryptions
+const keyCache = new Map();
+
 let backupMaster = null;
 const LOCAL_BACKUP_MASTER_FILE = path.resolve(process.cwd(), ".backup-master.keys.json");
 
@@ -200,13 +203,15 @@ const attachRuntimeMaterial = async (record) => {
   const privateSerialized = await backupDecrypt(record.privateKeyBackup);
   const macKeyHex = await backupDecrypt(record.macKeyBackup);
 
+  const runtime = {
+    publicKey: deserializePublic(record.algorithm, record.publicKey),
+    privateKey: deserializePrivate(record.algorithm, privateSerialized),
+    macKeyHex,
+  };
+
   return {
     ...record.toObject(),
-    runtime: {
-      publicKey: deserializePublic(record.algorithm, record.publicKey),
-      privateKey: deserializePrivate(record.algorithm, privateSerialized),
-      macKeyHex,
-    },
+    runtime,
   };
 };
 
@@ -216,19 +221,36 @@ export const getActiveKey = async ({ ownerId, domain, algorithm }) => {
 };
 
 export const getKeyById = async (keyId) => {
+  if (keyCache.has(keyId)) {
+    return keyCache.get(keyId);
+  }
+
   const record = await KeyMetadata.findOne({ keyId });
-  return attachRuntimeMaterial(record);
+  const material = await attachRuntimeMaterial(record);
+  
+  if (material) {
+    keyCache.set(keyId, material);
+  }
+  
+  return material;
 };
 
 export const ensureActiveKey = async ({ ownerId, domain, algorithm }) => {
   const existing = await getActiveKey({ ownerId, domain, algorithm });
 
   if (existing) {
+    keyCache.set(existing.keyId, existing);
     return existing;
   }
 
   const created = await createKeyVersion({ ownerId, domain, algorithm, rotationReason: "initial" });
-  return attachRuntimeMaterial(created);
+  const material = await attachRuntimeMaterial(created);
+  
+  if (material) {
+    keyCache.set(material.keyId, material);
+  }
+  
+  return material;
 };
 
 export const ensureKeySet = async ({ ownerId, domain }) => {

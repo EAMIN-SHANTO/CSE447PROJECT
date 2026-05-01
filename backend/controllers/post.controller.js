@@ -2,6 +2,7 @@ import Post from "../models/post.model.js";
 import User from "../models/user.model.js";
 import { ensureKeySet, getKeyById } from "../lib/crypto/key-manager.js";
 import { openProtectedRecord, sealProtectedRecord } from "../lib/crypto/protected-record.js";
+import AuditLog from "../models/audit-log.model.js";
 
 const POST_KEY_DOMAIN = "post-data";
 const DEFAULT_BIDDING_WINDOW_MS = 48 * 60 * 60 * 1000;
@@ -177,6 +178,11 @@ export const createPost = async (req, res) => {
       });
     }
 
+    const user = await User.findById(userId);
+    if (!user || user.accountStatus === "banned") {
+      return res.status(403).json({ message: "You are banned from creating posts." });
+    }
+
     if (process.env.NODE_ENV !== "test" && uploadedImages.length < 1) {
       return res.status(400).json({ message: "Upload at least 1 image" });
     }
@@ -228,6 +234,13 @@ export const createPost = async (req, res) => {
     });
 
     const post = await newPost.save();
+
+    await AuditLog.create({
+      action: "CREATE_POST",
+      actor: userId,
+      target: post._id,
+      details: "User created a new post",
+    });
 
     const openedPost = await toSafePost(post);
     res.status(201).json(openedPost);
@@ -315,6 +328,14 @@ export const updatePost = async (req, res) => {
     }
 
     await post.save();
+    
+    await AuditLog.create({
+      action: "CREATE_POST",
+      actor: req.auth.userId,
+      target: post._id,
+      details: "User created a new post",
+    });
+
     const openedPost = await toSafePost(post);
     return res.status(200).json(openedPost);
   } catch (error) {
@@ -331,13 +352,20 @@ export const deletePost = async (req, res) => {
     }
 
     const isOwner = String(post.user) === String(req.auth?.userId);
-    const isAdmin = req.auth?.role === "admin";
+    const isStaffOrAdmin = req.auth?.role === "admin" || req.auth?.role === "staff";
 
-    if (!isOwner && !isAdmin) {
+    if (!isOwner && !isStaffOrAdmin) {
       return res.status(403).json({ message: "Forbidden: you cannot delete this post" });
     }
 
     await Post.findByIdAndDelete(req.params.id);
+
+    await AuditLog.create({
+      action: "DELETE_POST",
+      actor: req.auth.userId,
+      target: req.params.id,
+      details: isStaffOrAdmin && !isOwner ? "Staff/Admin deleted post" : "User deleted their own post",
+    });
 
     return res.status(200).json({ message: "Post deleted", post });
   } catch (error) {

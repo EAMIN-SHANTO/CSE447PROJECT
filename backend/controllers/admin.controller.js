@@ -4,6 +4,7 @@ import Post from "../models/post.model.js";
 import TradeDispute from "../models/trade-dispute.model.js";
 import User from "../models/user.model.js";
 import UserReport from "../models/user-report.model.js";
+import AuditLog from "../models/audit-log.model.js";
 
 export const getAdminStatus = async (req, res) => {
   try {
@@ -169,5 +170,96 @@ export const resolveUserReport = async (req, res) => {
     });
   } catch (error) {
     return res.status(500).json({ message: "Failed to resolve report" });
+  }
+};
+
+export const listAuditLogs = async (req, res) => {
+  try {
+    const logs = await AuditLog.find({})
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .populate("actor", "pseudonym role");
+
+    return res.status(200).json({ logs });
+  } catch (error) {
+    return res.status(500).json({ message: "Failed to fetch audit logs" });
+  }
+};
+
+export const listUsers = async (req, res) => {
+  try {
+    const users = await User.find({}, "pseudonym role accountStatus trust createdAt lastLoginAt")
+      .sort({ createdAt: -1 })
+      .limit(200);
+
+    return res.status(200).json({ users });
+  } catch (error) {
+    return res.status(500).json({ message: "Failed to list users" });
+  }
+};
+
+export const toggleUserBan = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { isBanned } = req.body;
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (user.role === "admin" || (req.auth?.role === "staff" && user.role === "staff")) {
+      return res.status(403).json({ message: "You cannot ban this user due to role hierarchy" });
+    }
+
+    user.accountStatus = isBanned ? "banned" : "active";
+    await user.save();
+
+    return res.status(200).json({
+      message: `User has been ${isBanned ? "banned" : "unbanned"}`,
+      user: {
+        id: user._id,
+        pseudonym: user.pseudonym,
+        accountStatus: user.accountStatus,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ message: "Failed to toggle ban status" });
+  }
+};
+
+export const toggleUserRole = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { role } = req.body;
+
+    if (!["user", "staff"].includes(role)) {
+      return res.status(400).json({ message: "Invalid role assignment" });
+    }
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (user.role === "admin") {
+      return res.status(403).json({ message: "Cannot change the role of an admin" });
+    }
+
+    user.role = role;
+    await user.save();
+
+    return res.status(200).json({
+      message: `User role successfully updated to ${role}`,
+      user: {
+        id: user._id,
+        pseudonym: user.pseudonym,
+        role: user.role,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ message: "Failed to change user role" });
   }
 };

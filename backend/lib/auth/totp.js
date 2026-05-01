@@ -1,16 +1,10 @@
 import crypto from "crypto";
 import speakeasy from "speakeasy";
 import qrcode from "qrcode";
+import { ensureKeySet } from "../crypto/key-manager.js";
+import { eccEncrypt, eccDecrypt } from "../crypto/ecc.js";
 
 const APP_ISSUER = process.env.TOTP_ISSUER || "CSE447 Marketplace";
-
-const getEncryptionMaterial = () =>
-  process.env.TOTP_ENCRYPTION_KEY ||
-  process.env.ACCESS_TOKEN_SECRET ||
-  process.env.REFRESH_TOKEN_SECRET ||
-  "dev-totp-encryption-key-change-me";
-
-const deriveKey = () => crypto.createHash("sha256").update(getEncryptionMaterial()).digest();
 
 const normalizeOtp = (token) => String(token || "").replace(/\D+/g, "").trim();
 const normalizeBase32Secret = (secret) => String(secret || "").replace(/\s+/g, "").toUpperCase();
@@ -32,43 +26,18 @@ export const generateTotpSetup = async ({ accountLabel }) => {
   };
 };
 
-export const encryptTotpSecret = (secretBase32) => {
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv("aes-256-gcm", deriveKey(), iv);
-  const encrypted = Buffer.concat([cipher.update(String(secretBase32), "utf8"), cipher.final()]);
-  const tag = cipher.getAuthTag();
-
-  return {
-    iv: iv.toString("hex"),
-    tag: tag.toString("hex"),
-    ciphertext: encrypted.toString("hex"),
-  };
+export const encryptTotpSecret = async (secretBase32, userId) => {
+  const keySet = await ensureKeySet({ ownerId: String(userId), domain: "totp-secrets" });
+  return eccEncrypt(String(secretBase32), keySet.ecc.runtime.publicKey);
 };
 
-export const decryptTotpSecret = (encryptedPayload) => {
-  if (
-    !encryptedPayload ||
-    !encryptedPayload.iv ||
-    !encryptedPayload.tag ||
-    !encryptedPayload.ciphertext
-  ) {
+export const decryptTotpSecret = async (encryptedPayload, userId) => {
+  if (!encryptedPayload || !encryptedPayload.ciphertext) {
     return "";
   }
 
-  const decipher = crypto.createDecipheriv(
-    "aes-256-gcm",
-    deriveKey(),
-    Buffer.from(encryptedPayload.iv, "hex")
-  );
-
-  decipher.setAuthTag(Buffer.from(encryptedPayload.tag, "hex"));
-
-  const decrypted = Buffer.concat([
-    decipher.update(Buffer.from(encryptedPayload.ciphertext, "hex")),
-    decipher.final(),
-  ]);
-
-  return decrypted.toString("utf8");
+  const keySet = await ensureKeySet({ ownerId: String(userId), domain: "totp-secrets" });
+  return eccDecrypt(encryptedPayload, keySet.ecc.runtime.privateKey);
 };
 
 export const verifyTotpCode = ({ token, secretBase32 }) => {

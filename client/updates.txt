@@ -1,2 +1,8 @@
 database created.
 node --watch index.js  
+
+
+Email: md.eamin0519@gmail.com
+Password: md.eamin0519
+Pseudonym (Username): admin_0a86e0c5
+Role: Administrator

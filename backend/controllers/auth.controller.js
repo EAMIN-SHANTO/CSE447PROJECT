@@ -465,11 +465,15 @@ export const verifySecondFactor = async (req, res) => {
 
     // If authenticator is enabled, TOTP code can be used without depending on email challenge availability.
     if (user.twoFactor?.totpEnabled && user.twoFactor?.totpSecretEncrypted?.ciphertext) {
-      const activeSecret = decryptTotpSecret(user.twoFactor.totpSecretEncrypted);
-      const isTotpValid = verifyTotpCode({ token: otp, secretBase32: activeSecret });
+      try {
+        const activeSecret = await decryptTotpSecret(user.twoFactor.totpSecretEncrypted, user._id);
+        const isTotpValid = verifyTotpCode({ token: otp, secretBase32: activeSecret });
 
-      if (isTotpValid) {
-        return issueLoginSuccessResponse({ req, res, user });
+        if (isTotpValid) {
+          return issueLoginSuccessResponse({ req, res, user });
+        }
+      } catch (totpError) {
+        console.warn("TOTP decryption failed (possibly corrupted secret). Falling back to Email OTP.");
       }
     }
 
@@ -507,6 +511,7 @@ export const verifySecondFactor = async (req, res) => {
 
     return issueLoginSuccessResponse({ req, res, user });
   } catch (error) {
+    console.error("2FA verify error:", error);
     return res.status(500).json({ message: "2FA verification failed" });
   }
 };
@@ -523,7 +528,7 @@ export const setupTotp = async (req, res) => {
       accountLabel: user.pseudonym,
     });
 
-    user.twoFactor.totpPendingSecretEncrypted = encryptTotpSecret(setup.secretBase32);
+    user.twoFactor.totpPendingSecretEncrypted = await encryptTotpSecret(setup.secretBase32, user._id);
     user.twoFactor.totpSetupStartedAt = new Date();
     await user.save();
 
@@ -556,7 +561,7 @@ export const verifyTotpSetup = async (req, res) => {
       return res.status(400).json({ message: "No pending authenticator setup found" });
     }
 
-    const pendingSecret = decryptTotpSecret(user.twoFactor.totpPendingSecretEncrypted);
+    const pendingSecret = await decryptTotpSecret(user.twoFactor.totpPendingSecretEncrypted, user._id);
     const valid = verifyTotpCode({ token: code, secretBase32: pendingSecret });
 
     if (!valid) {
@@ -564,12 +569,15 @@ export const verifyTotpSetup = async (req, res) => {
     }
 
     const promotedSecret = {
-      iv: user.twoFactor.totpPendingSecretEncrypted.iv,
-      tag: user.twoFactor.totpPendingSecretEncrypted.tag,
+      algorithm: user.twoFactor.totpPendingSecretEncrypted.algorithm,
+      curve: user.twoFactor.totpPendingSecretEncrypted.curve,
+      nonce: user.twoFactor.totpPendingSecretEncrypted.nonce,
+      ephemeralPublicKey: user.twoFactor.totpPendingSecretEncrypted.ephemeralPublicKey,
       ciphertext: user.twoFactor.totpPendingSecretEncrypted.ciphertext,
     };
 
     user.twoFactor.totpSecretEncrypted = promotedSecret;
+    user.markModified("twoFactor.totpSecretEncrypted");
     user.twoFactor.totpPendingSecretEncrypted = null;
     user.twoFactor.totpEnabled = true;
     user.twoFactor.totpSetupAt = new Date();
@@ -605,7 +613,7 @@ export const disableTotp = async (req, res) => {
       return res.status(400).json({ message: "Authenticator is not enabled" });
     }
 
-    const activeSecret = decryptTotpSecret(user.twoFactor.totpSecretEncrypted);
+    const activeSecret = await decryptTotpSecret(user.twoFactor.totpSecretEncrypted, user._id);
     const valid = verifyTotpCode({ token: code, secretBase32: activeSecret });
 
     if (!valid) {
