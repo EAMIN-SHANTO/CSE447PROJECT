@@ -1,4 +1,8 @@
 import nodemailer from "nodemailer";
+import dns from "dns";
+
+// Fix for Render blocking/failing IPv6 connections to Google SMTP
+dns.setDefaultResultOrder("ipv4first");
 
 let transporter = null;
 let transporterKey = "";
@@ -29,6 +33,9 @@ const getTransporter = () => {
         user: config.user,
         pass: config.pass,
       },
+      tls: {
+        rejectUnauthorized: false
+      }
     });
     transporterKey = key;
   }
