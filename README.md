@@ -16,7 +16,7 @@ To run this project locally, you will need the following installed on your machi
 ### 1. Clone the Repository
 Clone the repository and navigate into the project directory:
 ```bash
-git clone <your-repository-url>
+git clone https://github.com/EAMIN-SHANTO/CSE447PROJEC
 cd CSE447
 ```
 
