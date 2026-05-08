@@ -35,7 +35,8 @@ const getTransporter = () => {
       },
       tls: {
         rejectUnauthorized: false
-      }
+      },
+      family: 4 // Force IPv4 explicitly for the socket connection
     });
     transporterKey = key;
   }
