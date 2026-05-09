@@ -89,6 +89,8 @@ export const api = {
     request(`/admin/users/${userId}/ban`, { method: "PATCH", body: { isBanned }, token }),
   toggleAdminUserRole: (userId, role, token) =>
     request(`/admin/users/${userId}/role`, { method: "PATCH", body: { role }, token }),
+  rotateAdminUserKeys: (payload, token) =>
+    request("/keys/rotate", { method: "POST", body: payload, token }),
 };
 
 export { API_BASE };

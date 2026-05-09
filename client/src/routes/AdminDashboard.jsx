@@ -94,6 +94,17 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleRotateKeys = async (userId) => {
+    if (!window.confirm("CRITICAL: Are you sure you want to forcibly rotate this user's cryptographic keys? This action will archive their current active keys.")) return;
+    try {
+      await api.rotateAdminUserKeys({ ownerId: userId, domain: "user-profile", reason: "Admin forced rotation from dashboard" }, token);
+      setMessage("Keys successfully rotated for user");
+      await load();
+    } catch (requestError) {
+      setMessage(requestError.message || "Failed to rotate keys");
+    }
+  };
+
   const handleDeletePost = async (postId) => {
     if (!window.confirm("Are you sure you want to permanently delete this post?")) return;
     try {
@@ -347,6 +358,14 @@ const AdminDashboard = () => {
                       }`}
                     >
                       {user.accountStatus === "banned" ? "Unban User" : "Ban User"}
+                    </button>
+                  )}
+                  {status?.actor?.role === "admin" && user.role !== "admin" && (
+                    <button
+                      onClick={() => handleRotateKeys(user._id)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white"
+                    >
+                      Rotate Keys
                     </button>
                   )}
                 </div>
